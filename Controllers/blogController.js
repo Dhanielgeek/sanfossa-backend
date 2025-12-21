@@ -1,6 +1,6 @@
 // controllers/blogController.js (Updated)
 
-const Blog = require("../models/BlogModel");
+const Blog = require("../Models/BlogModel.js");
 const { notifySubscribers } = require("../utill/notificationService.js"); // Import service
 
 exports.createBlogPost = async (req, res, next) => {
