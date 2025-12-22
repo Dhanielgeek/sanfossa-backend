@@ -7,7 +7,7 @@ const {
   getAdminProfile,
 } = require("../Controllers/adminControler");
 
-const { adminProtect } = require("../middleware/adminauth");
+const { adminProtect } = require("../middleware/authAdmin");
 
 router.post("/register", registerAdmin);
 router.post("/login", loginAdmin);
