@@ -44,6 +44,7 @@ const bookRoutes = require("./Routes/bookRoutes");
 const orderRoutes = require("./Routes/orderRoutes");
 const contactRoutes = require("./Routes/contactRoutes");
 const newsletterRoutes = require("./Routes/newsletterRoutes");
+const adminRoutes = require("./Routes/adminRoutes");
 
 // Mount the routes to their respective API endpoints
 app.use("/apiauth", authRoutes); // Authentication, Login, Register, Profile
@@ -52,6 +53,7 @@ app.use("/apibooks", bookRoutes); // Book Inventory Management
 app.use("/apiorders", orderRoutes); // Sales Transactions
 app.use("/apicontact", contactRoutes); // Contact Form Submission
 app.use("/apinewsletter", newsletterRoutes); // Newsletter Subscription
+app.use("/apiadmin", adminRoutes);
 
 // --- 6. Basic Health Check Route ---
 app.get("/", (req, res) => {
