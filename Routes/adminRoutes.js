@@ -5,7 +5,7 @@ const {
   registerAdmin,
   loginAdmin,
   getAdminProfile,
-} = require("../Controllers/admincontroller");
+} = require("../Controllers/adminControler");
 
 const { adminProtect } = require("../middleware/adminauth");
 
