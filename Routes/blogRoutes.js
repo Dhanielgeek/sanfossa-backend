@@ -1,22 +1,28 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const { protect, authorize } = require('../middleware/auth'); // Auth middleware
-const blogUpload = require('../middleware/upload'); // Multer middleware
-const { createBlogPost } = require('../Controllers/blogController');
+const upload = require("../middleware/upload");
+const { adminProtect } = require("../middleware/authAdmin");
 
-// --- POST/CREATE BLOG POST ROUTE ---
+const {
+  createBlog,
+  getPublicBlogs,
+  getSingleBlog,
+  getAllBlogsAdmin,
+  updateBlog,
+  deleteBlog,
+} = require("../Controllers/blogController");
 
-// @route   POST /api/v1/blogs
-// @desc    Create a new blog post (Requires image upload)
-// @access  Private (Admin/Editor Only)
-router.post(
-    '/', 
-    protect, 
-    authorize('admin', 'editor'), 
-    blogUpload.single('blogImage'), // 1. Handle the file upload (field name must be 'blogImage')
-    createBlogPost // 2. Handle the database logic
-);
+/* ---------- PUBLIC ---------- */
+router.get("/", getPublicBlogs);
+router.get("/:id", getSingleBlog);
 
-// --- NOTE: You would add GET, PUT, DELETE routes here for CRUD operations ---
+/* ---------- ADMIN ---------- */
+router.post("/", adminProtect, upload.single("featuredImage"), createBlog);
+
+router.get("/admin/all", adminProtect, getAllBlogsAdmin);
+
+router.put("/:id", adminProtect, upload.single("featuredImage"), updateBlog);
+
+router.delete("/:id", adminProtect, deleteBlog);
 
 module.exports = router;

@@ -1,26 +1,100 @@
-// controllers/blogController.js (Updated)
+const Blog = require("../Models/BlogModel");
+const uploadToCloudinary = require("../utill/uploadToCloudinary");
 
-const Blog = require("../Models/BlogModel.js");
-const { notifySubscribers } = require("../utill/notificationService.js"); // Import service
-
-exports.createBlogPost = async (req, res, next) => {
+exports.createBlog = async (req, res) => {
   try {
-    // ... (Existing logic to process req.body, req.file, and req.user) ...
-    req.body.user = req.user.id;
-    // ... (Image and Paragraph handling) ...
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: "Featured image is required",
+      });
+    }
 
-    const blogPost = await Blog.create(req.body);
+    const uploadResult = await uploadToCloudinary(req.file.buffer, "blogs");
 
-    // --- NEW: Send Notification Email ---
-    notifySubscribers("BLOG", blogPost);
-    // -----------------------------------
-
-    res.status(201).json({
-      success: true,
-      message: "Blog post created and subscribers notified!",
-      data: blogPost,
+    const blog = await Blog.create({
+      ...req.body,
+      featuredImage: uploadResult.secure_url,
+      tags: req.body.tags
+        ? req.body.tags.split(",").map((tag) => tag.trim())
+        : [],
+      createdBy: req.admin._id,
+      publishDate: req.body.status === "published" ? new Date() : null,
     });
+
+    res.status(201).json({ success: true, data: blog });
   } catch (error) {
     res.status(400).json({ success: false, error: error.message });
   }
+};
+
+/**
+ * @desc Get all published blogs (Public)
+ */
+exports.getPublicBlogs = async (req, res) => {
+  const blogs = await Blog.find({ status: "published" }).sort({
+    createdAt: -1,
+  });
+
+  res.json({ success: true, data: blogs });
+};
+
+/**
+ * @desc Get single blog (Public)
+ */
+exports.getSingleBlog = async (req, res) => {
+  const blog = await Blog.findById(req.params.id);
+
+  if (!blog || blog.status !== "published") {
+    return res.status(404).json({ success: false, message: "Blog not found" });
+  }
+
+  res.json({ success: true, data: blog });
+};
+
+/**
+ * @desc Admin get all blogs (Draft + Published)
+ */
+exports.getAllBlogsAdmin = async (req, res) => {
+  const blogs = await Blog.find().sort({ createdAt: -1 });
+  res.json({ success: true, data: blogs });
+};
+
+/**
+ * @desc Update blog (Admin)
+ */
+exports.updateBlog = async (req, res) => {
+  try {
+    if (req.file) {
+      const uploadResult = await uploadToCloudinary(req.file.buffer, "blogs");
+      req.body.featuredImage = uploadResult.secure_url;
+    }
+
+    if (req.body.tags) {
+      req.body.tags = req.body.tags.split(",").map((tag) => tag.trim());
+    }
+
+    const blog = await Blog.findByIdAndUpdate(req.params.id, req.body, {
+      new: true,
+    });
+
+    if (!blog) {
+      return res.status(404).json({
+        success: false,
+        message: "Blog not found",
+      });
+    }
+
+    res.json({ success: true, data: blog });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+};
+
+/**
+ * @desc Delete blog (Admin)
+ */
+exports.deleteBlog = async (req, res) => {
+  await Blog.findByIdAndDelete(req.params.id);
+  res.json({ success: true, message: "Blog deleted" });
 };
