@@ -45,6 +45,7 @@ const orderRoutes = require("./Routes/orderRoutes");
 const contactRoutes = require("./Routes/contactRoutes");
 const newsletterRoutes = require("./Routes/newsletterRoutes");
 const adminRoutes = require("./Routes/adminRoutes");
+const adminDashboardRoutes = require("./Routes/adminDashboardRoutes");
 
 // Mount the routes to their respective API endpoints
 app.use("/api/auth", authRoutes); // Authentication, Login, Register, Profile
@@ -54,6 +55,7 @@ app.use("/api/order", orderRoutes); // Sales Transactions
 app.use("/api/contact", contactRoutes); // Contact Form Submission
 app.use("/api/news", newsletterRoutes); // Newsletter Subscription
 app.use("/api/admin", adminRoutes);
+app.use("/api/admin", adminDashboardRoutes);
 
 // --- 6. Basic Health Check Route ---
 app.get("/", (req, res) => {
