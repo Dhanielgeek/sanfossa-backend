@@ -157,3 +157,40 @@ exports.getAdminProfile = async (req, res) => {
     data: req.admin,
   });
 };
+
+/**
+ * @desc Delete user by ID (Admin only)
+ * @route DELETE /apiadmin/users/:id
+ */
+exports.deleteUserById = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: "User not found",
+      });
+    }
+
+    // Optional: prevent deleting admins
+    if (user.role === "admin") {
+      return res.status(403).json({
+        success: false,
+        error: "You cannot delete another admin",
+      });
+    }
+
+    await user.deleteOne();
+
+    res.status(200).json({
+      success: true,
+      message: "User deleted successfully",
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+};
