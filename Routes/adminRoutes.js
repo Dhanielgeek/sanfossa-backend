@@ -5,12 +5,15 @@ const {
   registerAdmin,
   loginAdmin,
   getAdminProfile,
+  getAllUsers,
 } = require("../Controllers/adminControler");
 
 const { adminProtect } = require("../middleware/authAdmin");
 
 router.post("/register", registerAdmin);
+
 router.post("/login", loginAdmin);
 router.get("/profile", adminProtect, getAdminProfile);
+router.get("/users", adminProtect, getAllUsers);
 
 module.exports = router;

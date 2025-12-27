@@ -1,5 +1,6 @@
 const Admin = require("../Models/Adminmodel");
 const jwt = require("jsonwebtoken");
+const User = require("../Models/userModel");
 
 const generateToken = (id) =>
   jwt.sign({ id, type: "admin" }, process.env.JWT_SECRET, {
@@ -83,6 +84,64 @@ exports.loginAdmin = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       success: false,
+      error: error.message,
+    });
+  }
+};
+
+exports.getAllUsers = async (req, res) => {
+  try {
+    const users = await User.find()
+      .select("-password") // extra safety
+      .sort({ createdAt: -1 });
+
+    // Format users for frontend table
+    const formattedUsers = users.map((user) => ({
+      id: user._id,
+      name: user.fullname,
+      email: user.email,
+      role:
+        user.role === "admin"
+          ? "Admin"
+          : user.role === "editor"
+          ? "Editor"
+          : "User",
+      status: "Active", // all users are active unless you add isActive later
+      joined: user.createdAt.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      }),
+      orders: 0, // placeholder (until Orders model exists)
+    }));
+
+    // Stats for top cards
+    const totalUsers = users.length;
+    const activeUsers = users.length; // since no isActive field yet
+    const admins = users.filter((u) => u.role === "admin").length;
+
+    const newThisMonth = users.filter((u) => {
+      const now = new Date();
+      return (
+        u.createdAt.getMonth() === now.getMonth() &&
+        u.createdAt.getFullYear() === now.getFullYear()
+      );
+    }).length;
+
+    res.status(200).json({
+      success: true,
+      stats: {
+        totalUsers,
+        activeUsers,
+        newThisMonth,
+        admins,
+      },
+      data: formattedUsers,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch users",
       error: error.message,
     });
   }
