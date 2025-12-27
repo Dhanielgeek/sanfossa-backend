@@ -1,52 +1,47 @@
 const express = require("express");
 const router = express.Router();
-const Book = require("../Models/BooksModel.js");
-const { protect, authorize } = require("../middleware/auth"); // Auth middleware from before
 
-// routes/bookRoutes.js (Addition)
+const {
+  createBook,
+  updateBook,
+  deleteBook,
+  getAllBooksAdmin,
+  getPublicBooks,
+  getSingleBook,
+  downloadBook,
+} = require("../Controllers/bookController");
 
-const { updateInventory } = require("../Controllers/bookController");
-// ... other imports
+const upload = require("../middleware/upload");
+const { protect } = require("../middleware/auth");
+const { adminProtect } = require("../middleware/authAdmin");
 
-// ... existing routes
+/* =======================
+   PUBLIC ROUTES
+======================= */
 
-// @route   PUT /api/v1/books/:id/inventory
-// @desc    Update only the stock quantity (e.g., restocking or manual adjustment)
-// @access  Private (Admin/Editor Only)
-router.put(
-  "/:id/inventory",
-  protect,
-  authorize("admin", "editor"),
-  updateInventory
-);
+// Get all published stories (public)
+router.get("/", getPublicBooks);
 
-// ... module.exports
+// Get single published story
+router.get("/:id", getSingleBook);
 
-// @route   POST /api/v1/books
-// @desc    Add a new book to the inventory
-// @access  Private (Admin/Editor Only)
-router.post("/", protect, authorize("admin", "editor"), async (req, res) => {
-  // Controller logic to create a book and save to DB
-  try {
-    const book = await Book.create(req.body);
-    res.status(201).json({ success: true, data: book });
-  } catch (error) {
-    res.status(400).json({ success: false, error: error.message });
-  }
-});
+// Download story (free only)
+router.get("/:id/download", protect, downloadBook);
 
-// @route   GET /api/v1/books
-// @desc    Get all books (public for browsing)
-// @access  Public
-router.get("/", async (req, res) => {
-  try {
-    const books = await Book.find();
-    res.status(200).json({ success: true, count: books.length, data: books });
-  } catch (error) {
-    res.status(500).json({ success: false, error: "Server Error" });
-  }
-});
+/* =======================
+   ADMIN ROUTES
+======================= */
 
-// [Other CRUD routes like PUT /:id (Update) and DELETE /:id (Remove) would go here]
+// Create story (with image upload)
+router.post("/", adminProtect, upload.single("coverImage"), createBook);
+
+// Get all stories (draft + published)
+router.get("/admin/all", adminProtect, getAllBooksAdmin);
+
+// Update story (optional image upload)
+router.put("/:id", adminProtect, upload.single("coverImage"), updateBook);
+
+// Delete story
+router.delete("/:id", adminProtect, deleteBook);
 
 module.exports = router;
