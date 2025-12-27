@@ -35,7 +35,7 @@ exports.createBook = async (req, res) => {
 
       coverImage: uploadedImage.secure_url,
       status: req.body.status || "draft",
-      createdBy: req.user.id,
+      createdBy: req.admin.id,
     });
 
     res.status(201).json({
