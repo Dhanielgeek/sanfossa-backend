@@ -12,14 +12,13 @@ const uploadSchema = new mongoose.Schema(
           type: String,
           required: true,
         },
+        description: {
+          type: String,
+          required: true,
+          trim: true,
+        },
       },
     ],
-
-    description: {
-      type: String,
-      required: true,
-      trim: true,
-    },
 
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
