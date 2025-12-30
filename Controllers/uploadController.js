@@ -1,13 +1,13 @@
 const Upload = require("../Models/Uploadmodel");
 const uploadToCloudinary = require("../utill/uploadToCloudinary");
-
 /**
- * @desc    Admin upload 1–3 images with description
+ * @desc    Admin upload 2–3 images with descriptions
  * @route   POST /api/uploads
  * @access  Admin
  */
 exports.createUpload = async (req, res) => {
   try {
+    // 1️⃣ Validate images
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({
         success: false,
@@ -15,40 +15,45 @@ exports.createUpload = async (req, res) => {
       });
     }
 
-    if (req.files.length > 3) {
+    if (req.files.length < 2 || req.files.length > 3) {
       return res.status(400).json({
         success: false,
-        error: "Maximum of 3 images allowed",
+        error: "You can only upload 2–3 images",
       });
     }
 
-    // Get descriptions as array
-    let description = req.body.description || [];
-    if (!Array.isArray(description)) {
-      // If only one description, convert to array
-      description = [description];
+    // 2️⃣ Get descriptions (plural – matches frontend)
+    let descriptions = req.body.descriptions || [];
+
+    // If only one description, force array
+    if (!Array.isArray(descriptions)) {
+      descriptions = [descriptions];
     }
 
-    if (description.length !== req.files.length) {
+    // 3️⃣ Ensure each image has a description
+    if (descriptions.length !== req.files.length) {
       return res.status(400).json({
         success: false,
         error: "Each image must have a description",
       });
     }
 
+    // 4️⃣ Upload images to Cloudinary
     const uploadedImages = [];
 
     for (let i = 0; i < req.files.length; i++) {
       const file = req.files[i];
+
       const result = await uploadToCloudinary(file.buffer, "admin_uploads");
 
       uploadedImages.push({
         public_id: result.public_id,
         url: result.secure_url,
-        description: description[i],
+        description: descriptions[i],
       });
     }
 
+    // 5️⃣ Save to DB
     const upload = await Upload.create({
       images: uploadedImages,
       createdBy: req.admin.id,
@@ -59,6 +64,7 @@ exports.createUpload = async (req, res) => {
       data: upload,
     });
   } catch (error) {
+    console.error("Upload error:", error);
     res.status(500).json({
       success: false,
       error: error.message,
