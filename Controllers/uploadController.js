@@ -22,8 +22,12 @@ exports.createUpload = async (req, res) => {
       });
     }
 
-    // description comes as JSON string
-    const descriptions = JSON.parse(req.body.description || "[]");
+    // Get descriptions as array
+    let descriptions = req.body.descriptions || [];
+    if (!Array.isArray(descriptions)) {
+      // If only one description, convert to array
+      descriptions = [descriptions];
+    }
 
     if (descriptions.length !== req.files.length) {
       return res.status(400).json({
@@ -36,7 +40,6 @@ exports.createUpload = async (req, res) => {
 
     for (let i = 0; i < req.files.length; i++) {
       const file = req.files[i];
-
       const result = await uploadToCloudinary(file.buffer, "admin_uploads");
 
       uploadedImages.push({
