@@ -1,5 +1,5 @@
 const Upload = require("../Models/Uploadmodel");
-const uploadToCloudinary = require("../utils/uploadToCloudinary");
+const uploadToCloudinary = require("../utill/uploadToCloudinary");
 
 /**
  * @desc    Admin upload 1–3 images with description
