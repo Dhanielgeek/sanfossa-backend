@@ -22,16 +22,15 @@ exports.createUpload = async (req, res) => {
       });
     }
 
-    const { description } = req.body;
+    // description comes as JSON string
+    const descriptions = JSON.parse(req.body.description || "[]");
 
-    if (!description) {
+    if (descriptions.length !== req.files.length) {
       return res.status(400).json({
         success: false,
-        error: "Description is required",
+        error: "Each image must have a description",
       });
     }
-
-    const parsedDescription = JSON.parse(description);
 
     const uploadedImages = [];
 
@@ -43,7 +42,7 @@ exports.createUpload = async (req, res) => {
       uploadedImages.push({
         public_id: result.public_id,
         url: result.secure_url,
-        description: parsedDescription[i],
+        description: descriptions[i],
       });
     }
 
@@ -57,7 +56,6 @@ exports.createUpload = async (req, res) => {
       data: upload,
     });
   } catch (error) {
-    console.error(error);
     res.status(500).json({
       success: false,
       error: error.message,
