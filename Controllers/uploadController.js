@@ -23,13 +23,13 @@ exports.createUpload = async (req, res) => {
     }
 
     // Get descriptions as array
-    let descriptions = req.body.descriptions || [];
-    if (!Array.isArray(descriptions)) {
+    let description = req.body.description || [];
+    if (!Array.isArray(description)) {
       // If only one description, convert to array
-      descriptions = [descriptions];
+      description = [description];
     }
 
-    if (descriptions.length !== req.files.length) {
+    if (description.length !== req.files.length) {
       return res.status(400).json({
         success: false,
         error: "Each image must have a description",
@@ -45,7 +45,7 @@ exports.createUpload = async (req, res) => {
       uploadedImages.push({
         public_id: result.public_id,
         url: result.secure_url,
-        description: descriptions[i],
+        description: description[i],
       });
     }
 
