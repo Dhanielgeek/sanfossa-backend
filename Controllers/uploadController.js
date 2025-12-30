@@ -1,8 +1,8 @@
 const Upload = require("../Models/Uploadmodel");
-const cloudinary = require("../config/cloudinary");
+const uploadToCloudinary = require("../utils/uploadToCloudinary");
 
 /**
- * @desc    Admin upload 2–3 images with description
+ * @desc    Admin upload 1–3 images with description
  * @route   POST /api/uploads
  * @access  Admin
  */
@@ -31,22 +31,24 @@ exports.createUpload = async (req, res) => {
       });
     }
 
+    const parsedDescription = JSON.parse(description);
+
     const uploadedImages = [];
 
-    for (const file of req.files) {
-      const result = await cloudinary.uploader.upload(file.path, {
-        folder: "admin_uploads",
-      });
+    for (let i = 0; i < req.files.length; i++) {
+      const file = req.files[i];
+
+      const result = await uploadToCloudinary(file.buffer, "admin_uploads");
 
       uploadedImages.push({
         public_id: result.public_id,
         url: result.secure_url,
+        description: parsedDescription[i],
       });
     }
 
     const upload = await Upload.create({
       images: uploadedImages,
-      description,
       createdBy: req.admin.id,
     });
 
@@ -55,6 +57,7 @@ exports.createUpload = async (req, res) => {
       data: upload,
     });
   } catch (error) {
+    console.error(error);
     res.status(500).json({
       success: false,
       error: error.message,
