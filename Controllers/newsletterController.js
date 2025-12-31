@@ -1,62 +1,36 @@
 const Newsletter = require("../Models/Newsletter");
 
-// @desc    Handle new newsletter subscription
-// @route   POST /api/v1/newsletter
-// @access  Public
-exports.subscribe = async (req, res, next) => {
-  const { email } = req.body;
+const Subscriber = require("../Models/Subscriber");
+const { sendEmail } = require("../services/emailservice");
 
-  // Basic validation check
-  if (!email) {
-    return res
-      .status(400)
-      .json({ success: false, message: "Email address is required." });
-  }
+exports.createNewsletter = async (req, res) => {
+  const { subject, content } = req.body;
 
-  try {
-    // --- 1. Check if email is already subscribed ---
-    const existingSubscriber = await Newsletter.findOne({ email });
+  const newsletter = await Newsletter.create({ subject, content });
 
-    if (existingSubscriber) {
-      // It's often best practice to return a success message even if they were
-      // already subscribed, to avoid revealing information to potential attackers.
-      return res.status(200).json({
-        success: true,
-        message: "You are already subscribed to the newsletter.",
-      });
-    }
-
-    // --- 2. Create the new subscription ---
-    const newSubscriber = await Newsletter.create({ email });
-
-    // NOTE: You could optionally send a confirmation/welcome email here using Nodemailer.
-
-    res.status(201).json({
-      success: true,
-      message: "Successfully subscribed to the newsletter!",
-      data: newSubscriber,
-    });
-  } catch (error) {
-    // Handle Mongoose errors (e.g., if a validation error occurs despite the check)
-    res.status(500).json({
-      success: false,
-      error: "Server error: Could not process subscription.",
-    });
-  }
+  res.json({ success: true, data: newsletter });
 };
 
-// @desc    Get all newsletter subscribers (Admin view)
-// @route   GET /api/v1/newsletter
-// @access  Private (Admin Only)
-exports.getSubscribers = async (req, res, next) => {
-  try {
-    const subscribers = await Newsletter.find();
-    res.status(200).json({
-      success: true,
-      count: subscribers.length,
-      data: subscribers,
+exports.sendNewsletter = async (req, res) => {
+  const { id } = req.params;
+
+  const newsletter = await Newsletter.findById(id);
+  if (!newsletter)
+    return res.status(404).json({ success: false, error: "Not found" });
+
+  const subscribers = await Subscriber.find({ isActive: true });
+
+  for (const sub of subscribers) {
+    await sendEmail({
+      to: sub.email,
+      subject: newsletter.subject,
+      html: newsletter.content,
     });
-  } catch (error) {
-    res.status(500).json({ success: false, error: "Server error" });
   }
+
+  newsletter.status = "sent";
+  newsletter.sentAt = new Date();
+  await newsletter.save();
+
+  res.json({ success: true, message: "Newsletter sent" });
 };
