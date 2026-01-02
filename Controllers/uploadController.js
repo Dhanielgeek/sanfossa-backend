@@ -130,3 +130,51 @@ exports.deleteUpload = async (req, res) => {
     });
   }
 };
+
+exports.deleteImageById = async (req, res) => {
+  try {
+    const { imageId } = req.params;
+
+    // Find upload that contains this image
+    const upload = await Upload.findOne({
+      "images._id": imageId,
+    });
+
+    if (!upload) {
+      return res.status(404).json({
+        success: false,
+        error: "Image not found",
+      });
+    }
+
+    // Find the image
+    const image = upload.images.find((img) => img._id.toString() === imageId);
+
+    if (!image) {
+      return res.status(404).json({
+        success: false,
+        error: "Image not found",
+      });
+    }
+
+    // Delete from Cloudinary
+    await cloudinary.uploader.destroy(image.public_id);
+
+    // Remove image from array
+    upload.images = upload.images.filter(
+      (img) => img._id.toString() !== imageId
+    );
+
+    await upload.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Image deleted successfully",
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+};

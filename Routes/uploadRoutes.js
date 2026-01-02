@@ -5,6 +5,7 @@ const {
   createUpload,
   getAllUploads,
   deleteUpload,
+  deleteImageById,
 } = require("../Controllers/uploadController");
 
 const { adminProtect } = require("../middleware/authAdmin");
@@ -24,5 +25,10 @@ router.get("/", getAllUploads);
  * ADMIN: Delete upload
  */
 router.delete("/:id", adminProtect, deleteUpload);
+
+/**
+ * ADMIN: Delete upload by Image ID
+ */
+router.delete("/images/:imageId", adminProtect, deleteImageById);
 
 module.exports = router;
