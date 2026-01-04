@@ -12,6 +12,27 @@ exports.createBlog = async (req, res) => {
 
     const uploadResult = await uploadToCloudinary(req.file.buffer, "blogs");
 
+    const { status, publishDate } = req.body;
+
+    let finalPublishDate = null;
+    let publishedAt = null;
+
+    if (status === "published") {
+      finalPublishDate = new Date();
+      publishedAt = new Date();
+    }
+
+    if (status === "scheduled") {
+      if (!publishDate) {
+        return res.status(400).json({
+          success: false,
+          message: "Publish date is required for scheduled posts",
+        });
+      }
+
+      finalPublishDate = new Date(publishDate);
+    }
+
     const blog = await Blog.create({
       ...req.body,
       featuredImage: uploadResult.secure_url,
@@ -19,7 +40,8 @@ exports.createBlog = async (req, res) => {
         ? req.body.tags.split(",").map((tag) => tag.trim())
         : [],
       createdBy: req.admin._id,
-      publishDate: req.body.status === "published" ? new Date() : null,
+      publishDate: finalPublishDate,
+      publishedAt,
     });
 
     res.status(201).json({ success: true, data: blog });
@@ -32,9 +54,10 @@ exports.createBlog = async (req, res) => {
  * @desc Get all published blogs (Public)
  */
 exports.getPublicBlogs = async (req, res) => {
-  const blogs = await Blog.find({ status: "published" }).sort({
-    createdAt: -1,
-  });
+  const blogs = await Blog.find({
+    status: "published",
+    publishedAt: { $ne: null },
+  }).sort({ publishedAt: -1 });
 
   res.json({ success: true, data: blogs });
 };
