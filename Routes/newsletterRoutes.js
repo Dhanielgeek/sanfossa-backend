@@ -1,4 +1,3 @@
-
 // routes/newsletter.js
 const express = require("express");
 const router = express.Router();
@@ -20,31 +19,52 @@ function validateSendControls(req, res, next) {
     customFilter,
   } = req.body || {};
 
-  const isBool = (v) => typeof v === 'boolean';
+  const isBool = (v) => typeof v === "boolean";
   const isInt = (v) => Number.isInteger(v) && v >= 0;
-  const isObj = (v) => v && typeof v === 'object' && !Array.isArray(v);
+  const isObj = (v) => v && typeof v === "object" && !Array.isArray(v);
 
-  if (typeof onlyVerified !== 'undefined' && !isBool(onlyVerified)) {
-    return res.status(400).json({ success: false, message: 'onlyVerified must be a boolean.' });
+  if (typeof onlyVerified !== "undefined" && !isBool(onlyVerified)) {
+    return res
+      .status(400)
+      .json({ success: false, message: "onlyVerified must be a boolean." });
   }
-  if (typeof dryRun !== 'undefined' && !isBool(dryRun)) {
-    return res.status(400).json({ success: false, message: 'dryRun must be a boolean.' });
+  if (typeof dryRun !== "undefined" && !isBool(dryRun)) {
+    return res
+      .status(400)
+      .json({ success: false, message: "dryRun must be a boolean." });
   }
-  if (typeof batchSize !== 'undefined' && !isInt(batchSize)) {
-    return res.status(400).json({ success: false, message: 'batchSize must be a non-negative integer.' });
+  if (typeof batchSize !== "undefined" && !isInt(batchSize)) {
+    return res.status(400).json({
+      success: false,
+      message: "batchSize must be a non-negative integer.",
+    });
   }
-  if (typeof batchDelayMs !== 'undefined' && !isInt(batchDelayMs)) {
-    return res.status(400).json({ success: false, message: 'batchDelayMs must be a non-negative integer (ms).' });
+  if (typeof batchDelayMs !== "undefined" && !isInt(batchDelayMs)) {
+    return res.status(400).json({
+      success: false,
+      message: "batchDelayMs must be a non-negative integer (ms).",
+    });
   }
-  if (typeof maxConcurrency !== 'undefined' && !isInt(maxConcurrency)) {
-    return res.status(400).json({ success: false, message: 'maxConcurrency must be a non-negative integer.' });
+  if (typeof maxConcurrency !== "undefined" && !isInt(maxConcurrency)) {
+    return res.status(400).json({
+      success: false,
+      message: "maxConcurrency must be a non-negative integer.",
+    });
   }
-  if ( (typeof retries !== 'undefined') && (typeof retries !== 'undefined' && !isInt(retries)))
-     {
-    return res.status(400).json({ success: false, message: 'retries must be a non-negative integer.' });
+  if (
+    typeof retries !== "undefined" &&
+    typeof retries !== "undefined" &&
+    !isInt(retries)
+  ) {
+    return res.status(400).json({
+      success: false,
+      message: "retries must be a non-negative integer.",
+    });
   }
-  if (typeof customFilter !== 'undefined' && !isObj(customFilter)) {
-    return res.status(400).json({ success: false, message: 'customFilter must be an object.' });
+  if (typeof customFilter !== "undefined" && !isObj(customFilter)) {
+    return res
+      .status(400)
+      .json({ success: false, message: "customFilter must be an object." });
   }
 
   next();
@@ -52,3 +72,5 @@ function validateSendControls(req, res, next) {
 
 router.post("/", adminProtect, createNewsletter);
 router.post("/:id/send", adminProtect, validateSendControls, sendNewsletter);
+
+module.exports = router;
