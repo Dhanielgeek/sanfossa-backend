@@ -1,4 +1,3 @@
-
 // --- index.js ---
 const express = require("express");
 const dotenv = require("dotenv");
@@ -49,8 +48,6 @@ app.use("/api/book", bookRoutes);
 app.use("/api/order", orderRoutes);
 app.use("/api/contact", contactRoutes);
 
-// ❌ Removed: app.use("/api/news", newsletterRoutes);  // duplicate/unintended
-// ✅ Keep a single, clear mount for newsletter controller endpoints (create/send)
 app.use("/api/newsletter", newsletterRoutes);
 
 // Public subscriber endpoints (subscribe/unsubscribe)
@@ -78,6 +75,8 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () =>
   console.log(
-    `Server running in ${process.env.NODE_ENV || "development"} mode on port ${PORT}`
+    `Server running in ${
+      process.env.NODE_ENV || "development"
+    } mode on port ${PORT}`
   )
 );
