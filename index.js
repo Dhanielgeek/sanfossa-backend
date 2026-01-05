@@ -5,7 +5,7 @@ const mongoose = require("mongoose");
 const cors = require("cors");
 const path = require("path"); // Core Node module for path manipulation
 
-// require("./cron/publishScheduledBlogs");
+require("./cron/publishScheduledBlogs");
 
 // --- 1. Load Environment Variables ---
 dotenv.config();
