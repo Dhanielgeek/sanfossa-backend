@@ -1,23 +1,18 @@
-const mongoose = require("mongoose");
 
-const newsletterSchema = new mongoose.Schema(
-  {
-    subject: {
-      type: String,
-      required: true,
-    },
-    content: {
-      type: String, // HTML content
-      required: true,
-    },
-    status: {
-      type: String,
-      enum: ["draft", "sent"],
-      default: "draft",
-    },
-    sentAt: Date,
-  },
-  { timestamps: true }
-);
+// Models/Newsletter.js (excerpt)
+const mongoose = require('mongoose');
 
-module.exports = mongoose.model("Newsletter", newsletterSchema);
+const NewsletterSchema = new mongoose.Schema({
+  subject: { type: String, required: true },
+  content: { type: String, required: true }, // HTML content
+  status: { type: String, enum: ['draft', 'sent', 'partial', 'dry-sent'], default: 'draft' },
+  sentAt: { type: Date },
+  metrics: {
+    totalRecipients: { type: Number, default: 0 },
+    sent: { type: Number, default: 0 },
+    failed: { type: Number, default: 0 },
+    dryRun: { type: Boolean, default: false },
+    lastAttemptAt: { type: Date }
+  }
+}, {}, { timestamps: true });
+

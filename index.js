@@ -1,19 +1,20 @@
+
 // --- index.js ---
 const express = require("express");
 const dotenv = require("dotenv");
 const mongoose = require("mongoose");
 const cors = require("cors");
-const path = require("path"); // Core Node module for path manipulation
+const path = require("path");
 
 require("./cron/publishScheduledBlogs");
 
-// --- 1. Load Environment Variables ---
+// 1. Load env
 dotenv.config();
 
-// --- 2. Initialize App ---
+// 2. App
 const app = express();
 
-// --- 3. Database Connection Routine ---
+// 3. DB
 const connectDB = async () => {
   try {
     const conn = await mongoose.connect(process.env.MONGODB_URI);
@@ -25,21 +26,12 @@ const connectDB = async () => {
 };
 connectDB();
 
-// --- 4. Middleware Setup ---
-
-// a. Enable CORS (Cross-Origin Resource Sharing)
+// 4. Middleware
 app.use(cors());
-
-// b. Body Parser (Accepts JSON data from requests)
 app.use(express.json());
-
-// c. Static Folder Setup (Crucial for serving uploaded images)
-// This makes files in the 'uploads' directory accessible via the '/uploads' URL path
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
-// --- 5. Route Mounting ---
-
-// Import all required route files
+// 5. Routes
 const authRoutes = require("./Routes/authRoutes");
 const blogRoutes = require("./Routes/blogRoutes");
 const bookRoutes = require("./Routes/bookRoutes");
@@ -51,25 +43,29 @@ const adminDashboardRoutes = require("./Routes/adminDashboardRoutes");
 const uploadRoutes = require("./Routes/uploadRoutes");
 const subscribeRoutes = require("./Routes/subscribeRoutes");
 
-// Mount the routes to their respective API endpoints
-app.use("/api/auth", authRoutes); // Authentication, Login, Register, Profile
-app.use("/api/blog", blogRoutes); // Blog CRUD & Image Upload
-app.use("/api/book", bookRoutes); // Book Inventory Management
-app.use("/api/order", orderRoutes); // Sales Transactions
-app.use("/api/contact", contactRoutes); // Contact Form Submission
-app.use("/api/news", newsletterRoutes); // Newsletter Subscription
+app.use("/api/auth", authRoutes);
+app.use("/api/blog", blogRoutes);
+app.use("/api/book", bookRoutes);
+app.use("/api/order", orderRoutes);
+app.use("/api/contact", contactRoutes);
+
+// ❌ Removed: app.use("/api/news", newsletterRoutes);  // duplicate/unintended
+// ✅ Keep a single, clear mount for newsletter controller endpoints (create/send)
+app.use("/api/newsletter", newsletterRoutes);
+
+// Public subscriber endpoints (subscribe/unsubscribe)
+app.use("/api/subscribers", subscribeRoutes);
+
 app.use("/api/admin", adminRoutes);
 app.use("/api/admin", adminDashboardRoutes);
 app.use("/api/uploads", uploadRoutes);
-app.use("/api/subscribe", subscribeRoutes);
-app.use("/api/newsletter", newsletterRoutes);
-// --- 6. Basic Health Check Route ---
+
+// 6. Health
 app.get("/", (req, res) => {
   res.send("API is running...");
 });
 
-// --- 7. Error Handling Middleware (Recommended for production apps) ---
-// This should be the last piece of middleware before the server listener.
+// 7. Error handler
 app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(err.statusCode || 500).json({
@@ -78,13 +74,10 @@ app.use((err, req, res, next) => {
   });
 });
 
-// --- 8. Start Server Listener ---
+// 8. Listen
 const PORT = process.env.PORT || 5000;
-
 app.listen(PORT, () =>
   console.log(
-    `Server running in ${
-      process.env.NODE_ENV || "development"
-    } mode on port ${PORT}`
+    `Server running in ${process.env.NODE_ENV || "development"} mode on port ${PORT}`
   )
 );
