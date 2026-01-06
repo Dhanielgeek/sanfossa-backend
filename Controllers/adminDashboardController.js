@@ -1,7 +1,7 @@
 const User = require("../Models/userModel");
 const Order = require("../Models/BooksOrdersModel");
 const Blog = require("../Models/BlogModel");
-const Newsletter = require("../Models/Newsletter");
+const Subscriber = require("../Models/Subscriber");
 
 // Helper: percentage change
 const calcChange = (current, previous) => {
@@ -41,7 +41,7 @@ exports.getAdminDashboard = async (req, res) => {
       .select("title views publishDate");
 
     /* ---------- NEWSLETTER ---------- */
-    const subscribers = await Newsletter.countDocuments();
+    const subscribers = await Subscriber.countDocuments();
 
     // Static placeholders for now (until email provider analytics)
     const newsletterStats = {
