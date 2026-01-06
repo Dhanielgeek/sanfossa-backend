@@ -19,7 +19,7 @@ const NewsletterSchema = new mongoose.Schema(
       lastAttemptAt: { type: Date },
     },
   },
-  {},
+
   { timestamps: true }
 );
 
