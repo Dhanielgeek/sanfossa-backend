@@ -238,3 +238,51 @@ exports.sendNewsletter = async (req, res) => {
     });
   }
 };
+
+exports.scheduleNewsletter = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { scheduledAt } = req.body;
+
+    if (!scheduledAt) {
+      return res
+        .status(400)
+        .json({ success: false, message: "scheduledAt is required" });
+    }
+
+    const date = new Date(scheduledAt);
+    if (isNaN(date.getTime()) || date <= new Date()) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid future date required" });
+    }
+
+    const newsletter = await Newsletter.findById(id);
+    if (!newsletter) {
+      return res.status(404).json({ success: false, message: "Not found" });
+    }
+
+    if (newsletter.status === "sent") {
+      return res.status(409).json({ success: false, message: "Already sent" });
+    }
+
+    newsletter.scheduledAt = date;
+    newsletter.status = "scheduled";
+    await newsletter.save();
+
+    return res.json({
+      success: true,
+      message: "Newsletter scheduled successfully",
+      data: {
+        id: newsletter._id,
+        scheduledAt: newsletter.scheduledAt,
+      },
+    });
+  } catch (err) {
+    console.error("[NEWSLETTER][SCHEDULE][ERROR]", err);
+    res.status(500).json({
+      success: false,
+      message: "Failed to schedule newsletter",
+    });
+  }
+};

@@ -14,6 +14,7 @@ const NewsletterSchema = new mongoose.Schema(
     metrics: {
       totalRecipients: { type: Number, default: 0 },
       sent: { type: Number, default: 0 },
+      scheduledAt: Date,
       failed: { type: Number, default: 0 },
       dryRun: { type: Boolean, default: false },
       lastAttemptAt: { type: Date },
