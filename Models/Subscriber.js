@@ -11,6 +11,18 @@ const SubscriberSchema = new mongoose.Schema(
       unique: true,
       index: true,
     },
+    firstName:{
+      type: String,
+      trim: true,
+      lowercase: true,
+      default: null,
+    },
+    lastName:{
+      type: String,
+      trim: true,
+      lowercase: true,
+      default: null,
+    },
     isActive: {
       type: Boolean,
       default: true,

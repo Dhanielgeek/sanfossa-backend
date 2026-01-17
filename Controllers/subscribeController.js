@@ -11,6 +11,9 @@ const isValidEmail = (email) => {
 exports.subscribe = async (req, res) => {
   try {
     const rawEmail = req.body?.email;
+    const firstName = req.body?.firstName || null;
+    const lastName = req.body?.lastName || null;
+
     if (!rawEmail) {
       return res
         .status(400)
@@ -41,7 +44,7 @@ exports.subscribe = async (req, res) => {
       return res.status(200).json({
         success: true,
         message: existing.isVerified
-          ? "You are subscribed."
+          ? "You are subscribed. " + existing.firstName
           : "Subscription pending verification.",
       });
     }
@@ -54,6 +57,8 @@ exports.subscribe = async (req, res) => {
 
     await Subscriber.create({
       email,
+      firstName,
+      lastName,
       isActive: true,
       isVerified: useDoubleOptIn ? false : true,
       verificationToken,
