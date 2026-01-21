@@ -1,0 +1,25 @@
+
+// routes/subscriberGroup.routes.js
+import { Router } from "express";
+import {
+  createSubscriberGroup,
+  updateSubscriberGroup,
+} from "../Controllers/subscriberGroup.controller.js";
+
+const router = Router();
+
+/**
+ * Create a new Subscriber Group
+ * POST /api/subscriber-groups
+ * Body: { id, name }
+ */
+router.post("/subscriber-groups", createSubscriberGroup);
+
+/**
+ * Update a Subscriber Group by its external id
+ * PATCH /api/subscriber-groups/:id
+ * Body: { name?, id? }
+ */
+router.patch("/subscriber-groups/:id", updateSubscriberGroup);
+
+export default router;

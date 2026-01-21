@@ -8,6 +8,48 @@ const isValidEmail = (email) => {
   return basicPattern.test(email.trim().toLowerCase());
 };
 
+exports.updateSubscription = async (req, res) => {
+  try {
+    const rawEmail = req.body?.email;
+    const firstName = req.body?.firstName || null;
+    const lastName = req.body?.lastName || null; 
+    const mailerId = req.body?.mailerId || null; 
+    
+    if (!rawEmail) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Email required" });
+    }
+    const email = rawEmail.trim().toLowerCase();
+    if (!isValidEmail(email)) {
+      return res
+        .status(400)  
+        .json({
+          success: false,
+          message: "Please provide a valid email address.",
+        });
+    }
+    const subscriber = await Subscriber.findOne({ email });
+    if (!subscriber) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Subscriber not found" });
+    }
+    await Subscriber.findOneAndUpdate(
+      { email },
+      { firstName, lastName, mailerId },
+      { new: true }
+    );
+    return res.status(200).json({
+      success: true,
+      message: "Subscription updated successfully",
+    });
+  } catch (err) {
+    console.error("[UPDATE_SUBSCRIPTION][ERROR]", err);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
 exports.subscribe = async (req, res) => {
   try {
     const rawEmail = req.body?.email;

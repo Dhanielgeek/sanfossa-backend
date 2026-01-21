@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const {
   subscribe,
+  updateSubscription,
   unsubscribe,
   getSubscribers,
   verify, // optional for double opt-in
@@ -11,6 +12,7 @@ const { adminProtect } = require("../middleware/authAdmin");
 
 // POST /api/v1/subscribers/subscribe
 router.post("/subscribe", subscribe);
+router.patch("/subscribe", updateSubscription);
 
 // GET /api/v1/subscribers/all (admin only)
 router.get("/all", adminProtect, getSubscribers);

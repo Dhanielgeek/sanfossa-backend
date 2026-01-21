@@ -41,12 +41,14 @@ const adminRoutes = require("./Routes/adminRoutes");
 const adminDashboardRoutes = require("./Routes/adminDashboardRoutes");
 const uploadRoutes = require("./Routes/uploadRoutes");
 const subscribeRoutes = require("./Routes/subscribeRoutes");
+import subscriberGroupRoutes from "./Routes/subscriberGroup.routes";
 
 app.use("/api/auth", authRoutes);
 app.use("/api/blog", blogRoutes);
 app.use("/api/book", bookRoutes);
 app.use("/api/order", orderRoutes);
 app.use("/api/contact", contactRoutes);
+app.use("/api", subscriberGroupRoutes);
 
 app.use("/api/newsletter", newsletterRoutes);
 

@@ -23,6 +23,12 @@ const SubscriberSchema = new mongoose.Schema(
       lowercase: true,
       default: null,
     },
+    mailerId: {
+      type: String,
+      default: null,
+      trim: true,
+      
+    },
     isActive: {
       type: Boolean,
       default: true,
