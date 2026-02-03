@@ -1,6 +1,16 @@
 // controllers/subscriberController.js
 const crypto = require("crypto");
 const Subscriber = require("../Models/Subscriber");
+const axios = require("axios");
+
+// Try to import SubscriberGroup model (file exports may be ESM default)
+let SubscriberGroup = null;
+try {
+  SubscriberGroup = require("../Models/SubscriberGroupSchema");
+  if (SubscriberGroup && SubscriberGroup.default) SubscriberGroup = SubscriberGroup.default;
+} catch (e) {
+  SubscriberGroup = null;
+}
 
 const isValidEmail = (email) => {
   if (typeof email !== "string") return false;
@@ -105,6 +115,85 @@ exports.subscribe = async (req, res) => {
       isVerified: useDoubleOptIn ? false : true,
       verificationToken,
     });
+
+    // --- MailerLite sync: fetch groups, sync groups to DB, create external subscriber ---
+    // Allow token to come from a header (for testing) or from server env var
+    const mlToken = req.headers["x-mailerlite-token"] || process.env.MAILERLITE_TOKEN;
+
+    if (mlToken) {
+      try {
+        // 1) Retrieve all groups from MailerLite
+        const groupsRes = await axios.get("https://connect.mailerlite.com/api/groups", {
+          headers: {
+            Authorization: `Bearer ${mlToken}`,
+            Accept: "application/json",
+          },
+          timeout: 10000,
+        });
+
+        const groups = Array.isArray(groupsRes.data) ? groupsRes.data : groupsRes.data?.data ?? [];
+
+        // 2) Sync groups to database (insert only if not present)
+        if (SubscriberGroup && Array.isArray(groups)) {
+          for (const g of groups) {
+            const gid = g?.id ?? g?.group_id ?? g?.uuid ?? g?.gid ?? null;
+            const name = g?.name ?? g?.title ?? "";
+            if (!gid) continue;
+            try {
+              await SubscriberGroup.updateOne(
+                { groupId: String(gid) },
+                { $setOnInsert: { groupId: String(gid), name: String(name) } },
+                { upsert: true }
+              );
+            } catch (innerErr) {
+              console.warn("[GROUP_SYNC][WARN] failed for group", gid, innerErr?.message || innerErr);
+            }
+          }
+        }
+
+        // 3) Create subscriber in MailerLite
+        try {
+          const mlBody = {
+            email,
+            fields: {
+              name: firstName || undefined,
+              last_name: lastName || undefined,
+            },
+          };
+
+          const mlCreateRes = await axios.post(
+            "https://connect.mailerlite.com/api/subscribers",
+            mlBody,
+            {
+              headers: {
+                Authorization: `Bearer ${mlToken}`,
+                "Content-Type": "application/json",
+                Accept: "application/json",
+              },
+              timeout: 10000,
+            }
+          );
+
+          // If MailerLite returns an id, update local subscriber with mailerId
+          const mlData = mlCreateRes.data;
+          const mlId = mlData?.id ?? mlData?.data?.id ?? null;
+          if (mlId) {
+            try {
+              await Subscriber.findOneAndUpdate({ email }, { mailerId: String(mlId) }, { new: true });
+            } catch (uErr) {
+              console.warn("[SUBSCRIBE][WARN] failed to save mailerId locally", uErr?.message || uErr);
+            }
+          }
+        } catch (mlErr) {
+          console.warn("[MAILERLITE][ERROR] create subscriber failed:", mlErr?.response?.data ?? mlErr?.message ?? mlErr);
+          // don't throw — backend subscription should not fail because of third-party errors
+        }
+      } catch (errGroups) {
+        console.warn("[MAILERLITE][WARN] failed to fetch groups or sync:", errGroups?.response?.data ?? errGroups?.message ?? errGroups);
+      }
+    } else {
+      console.warn("[MAILERLITE][INFO] no MailerLite token provided; skipping external sync");
+    }
 
     // If double opt-in, send verification email here via your email service.
     // await sendVerificationEmail(email, verificationToken);
