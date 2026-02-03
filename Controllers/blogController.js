@@ -40,6 +40,61 @@ exports.getPublicBlogs = async (req, res) => {
 };
 
 /**
+ * @desc Get RSS feed for latest published blogs
+ */
+exports.getRssFeed = async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit, 10) || 20;
+    const blogs = await Blog.find({ status: "published" })
+      .sort({ publishDate: -1, createdAt: -1 })
+      .limit(limit)
+      .lean();
+
+    const siteUrl = process.env.SITE_URL || `${req.protocol}://${req.get("host")}`;
+    const feedTitle = process.env.SITE_NAME || "Blog Feed";
+    const feedDescription = process.env.SITE_DESCRIPTION || "Latest posts";
+
+    const itemsXml = blogs
+      .map((b) => {
+        const link = `${siteUrl}/blog/${b._id}`;
+        const pubDate = b.publishDate ? new Date(b.publishDate).toUTCString() : new Date(b.createdAt).toUTCString();
+        const description = (b.excerpt || b.content || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        const title = (b.title || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        const guid = `${link}`;
+        const enclosure = b.featuredImage ? `<enclosure url="${b.featuredImage}" type="image/jpeg"/>` : "";
+
+        return `
+      <item>
+        <title>${title}</title>
+        <link>${link}</link>
+        <guid isPermaLink="true">${guid}</guid>
+        <pubDate>${pubDate}</pubDate>
+        <description><![CDATA[${description}]]></description>
+        ${enclosure}
+      </item>`;
+      })
+      .join("\n");
+
+    const rss = `<?xml version="1.0" encoding="UTF-8" ?>
+  <rss version="2.0">
+    <channel>
+      <title>${feedTitle}</title>
+      <link>${siteUrl}</link>
+      <description>${feedDescription}</description>
+      <language>en-us</language>
+      ${itemsXml}
+    </channel>
+  </rss>`;
+
+    res.type("application/rss+xml");
+    return res.send(rss);
+  } catch (err) {
+    console.error("[RSS][ERROR]", err);
+    return res.status(500).json({ success: false, message: "Failed to generate RSS feed" });
+  }
+};
+
+/**
  * @desc Get single blog (Public)
  */
 exports.getSingleBlog = async (req, res) => {

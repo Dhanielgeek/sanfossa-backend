@@ -6,6 +6,7 @@ const { adminProtect } = require("../middleware/authAdmin");
 const {
   createBlog,
   getPublicBlogs,
+  getRssFeed,
   getSingleBlog,
   getAllBlogsAdmin,
   updateBlog,
@@ -14,6 +15,7 @@ const {
 
 /* ---------- PUBLIC ---------- */
 router.get("/", getPublicBlogs);
+router.get("/rss", getRssFeed);
 router.get("/:id", getSingleBlog);
 
 /* ---------- ADMIN ---------- */
