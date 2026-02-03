@@ -20,40 +20,40 @@ const isValidEmail = (email) => {
 
 exports.updateSubscription = async (req, res) => {
   try {
+    // Accept update by email or by local id. Accepts fields: email?, id?, firstName?, lastName?, mailerId?
     const rawEmail = req.body?.email;
+    const id = req.body?.id || req.body?._id || null;
     const firstName = req.body?.firstName || null;
-    const lastName = req.body?.lastName || null; 
-    const mailerId = req.body?.mailerId || null; 
-    
-    if (!rawEmail) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Email required" });
+    const lastName = req.body?.lastName || null;
+    const mailerId = req.body?.mailerId || null;
+
+    if (!rawEmail && !id) {
+      return res.status(400).json({ success: false, message: "Email or id required" });
     }
-    const email = rawEmail.trim().toLowerCase();
-    if (!isValidEmail(email)) {
-      return res
-        .status(400)  
-        .json({
-          success: false,
-          message: "Please provide a valid email address.",
-        });
+
+    let filter = {};
+    if (id) {
+      filter = { _id: id };
+    } else {
+      const email = rawEmail.trim().toLowerCase();
+      if (!isValidEmail(email)) {
+        return res.status(400).json({ success: false, message: "Please provide a valid email address." });
+      }
+      filter = { email };
     }
-    const subscriber = await Subscriber.findOne({ email });
+
+    const subscriber = await Subscriber.findOne(filter);
     if (!subscriber) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Subscriber not found" });
+      return res.status(404).json({ success: false, message: "Subscriber not found" });
     }
-    await Subscriber.findOneAndUpdate(
-      { email },
-      { firstName, lastName, mailerId },
-      { new: true }
-    );
-    return res.status(200).json({
-      success: true,
-      message: "Subscription updated successfully",
-    });
+
+    const update = {};
+    if (firstName !== null) update.firstName = firstName;
+    if (lastName !== null) update.lastName = lastName;
+    if (mailerId !== null) update.mailerId = mailerId;
+
+    await Subscriber.findOneAndUpdate(filter, update, { new: true });
+    return res.status(200).json({ success: true, message: "Subscription updated successfully", data: { id: subscriber._id } });
   } catch (err) {
     console.error("[UPDATE_SUBSCRIPTION][ERROR]", err);
     return res.status(500).json({ success: false, message: "Server error" });
@@ -107,7 +107,7 @@ exports.subscribe = async (req, res) => {
       ? crypto.randomBytes(24).toString("hex")
       : undefined;
 
-    await Subscriber.create({
+    const created = await Subscriber.create({
       email,
       firstName,
       lastName,
@@ -198,19 +198,41 @@ exports.subscribe = async (req, res) => {
     // If double opt-in, send verification email here via your email service.
     // await sendVerificationEmail(email, verificationToken);
 
-    return res.status(201).json({
-      success: true,
-      message: useDoubleOptIn
-        ? "Thanks! Please check your email to confirm your subscription."
-        : "Subscribed successfully",
-    });
+    // Attempt to fetch the most recent local record to include id + mailerId
+    try {
+      const latest = await Subscriber.findOne({ email }).select("_id mailerId");
+      return res.status(201).json({
+        success: true,
+        message: useDoubleOptIn
+          ? "Thanks! Please check your email to confirm your subscription."
+          : "Subscribed successfully",
+        data: { id: latest?._id, mailerId: latest?.mailerId ?? null },
+      });
+    } catch (finalErr) {
+      // Still return success even if fetching the id failed
+      return res.status(201).json({
+        success: true,
+        message: useDoubleOptIn
+          ? "Thanks! Please check your email to confirm your subscription."
+          : "Subscribed successfully",
+      });
+    }
   } catch (err) {
     // Handle duplicate key race condition (E11000)
     if (err?.code === 11000 && err?.keyPattern?.email) {
-      return res.status(200).json({
-        success: true,
-        message: "You are already subscribed.",
-      });
+      try {
+        const sub = await Subscriber.findOne({ email }).select("_id mailerId");
+        return res.status(200).json({
+          success: true,
+          message: "You are already subscribed.",
+          data: { id: sub?._id, mailerId: sub?.mailerId ?? null },
+        });
+      } catch (lookupErr) {
+        return res.status(200).json({
+          success: true,
+          message: "You are already subscribed.",
+        });
+      }
     }
     console.error("[SUBSCRIBE][ERROR]", err);
     return res.status(500).json({ success: false, message: "Server error" });
