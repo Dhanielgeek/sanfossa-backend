@@ -1,31 +1,74 @@
 const express = require("express");
 const router = express.Router();
 const Order = require("../Models/BooksOrdersModel");
-const { protect } = require("../middleware/auth"); // Only need 'protect' for logged-in user
+const Book = require("../Models/BooksModel"); // Make sure you have the Book model
+const mongoose = require("mongoose");
 
-// @route   POST /api/v1/orders
-// @desc    Create a new sales order (Checkout)
-// @access  Private (User must be logged in)
-router.post("/", protect, async (req, res) => {
-  // The controller logic here must also handle decrementing the stockQuantity of each book!
+// ----------------------
+// POST /api/v1/orders (Guest Checkout)
+// ----------------------
+router.post("/", async (req, res) => {
+  const { items, userInfo } = req.body;
+
+  if (!items || items.length === 0) {
+    return res.status(400).json({ success: false, error: "No items provided" });
+  }
+  if (
+    !userInfo ||
+    !userInfo.name ||
+    !userInfo.email ||
+    !userInfo.phone ||
+    !userInfo.address
+  ) {
+    return res
+      .status(400)
+      .json({ success: false, error: "Incomplete user info" });
+  }
+
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
-    // req.user.id is attached by the 'protect' middleware
-    const order = await Order.create({ ...req.body, user: req.user.id });
-    res.status(201).json({ success: true, data: order });
+    // Decrement stock safely
+    for (const item of items) {
+      const book = await Book.findById(item.book).session(session);
+      if (!book) throw new Error(`Book not found: ${item.book}`);
+      if (book.stockQuantity < item.quantity)
+        throw new Error(`Insufficient stock for: ${book.title}`);
+
+      await Book.findByIdAndUpdate(
+        item.book,
+        { $inc: { stockQuantity: -item.quantity } },
+        { session },
+      );
+    }
+
+    // Create order
+    const order = await Order.create([{ items, userInfo }], { session });
+
+    await session.commitTransaction();
+    session.endSession();
+
+    res.status(201).json({ success: true, data: order[0] });
   } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
     res.status(400).json({ success: false, error: error.message });
   }
 });
 
-// @route   GET /api/v1/orders/my
-// @desc    Get all orders for the currently logged-in user
-// @access  Private
+// ----------------------
+// GET /api/v1/orders/my (Optional: For logged-in users)
+// ----------------------
+// Keep this if you want a user to see their orders, but only applies to logged-in users
+const { protect } = require("../middleware/auth");
 router.get("/my", protect, async (req, res) => {
   try {
-    // Find orders linked to the logged-in user ID, and 'populate' the book details
-    const orders = await Order.find({ user: req.user.id }).populate({
+    const orders = await Order.find({
+      "userInfo.email": req.user.email,
+    }).populate({
       path: "items.book",
-      select: "title price imageUrl",
+      select: "title price coverImage",
     });
 
     res.status(200).json({ success: true, count: orders.length, data: orders });
