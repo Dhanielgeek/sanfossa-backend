@@ -48,12 +48,10 @@ const OrderSchema = new mongoose.Schema({
 });
 
 // Pre-save: calculate total
-OrderSchema.pre("save", function (next) {
+OrderSchema.pre("save", async function () {
   this.totalAmount = this.items.reduce(
     (acc, item) => acc + item.quantity * item.priceAtPurchase,
     0,
   );
-  next();
 });
-
 module.exports = mongoose.model("Order", OrderSchema);
