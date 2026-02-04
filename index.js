@@ -42,7 +42,7 @@ const adminDashboardRoutes = require("./Routes/adminDashboardRoutes");
 const uploadRoutes = require("./Routes/uploadRoutes");
 const subscribeRoutes = require("./Routes/subscribeRoutes");
 const healthRoutes = require("./Routes/healthRoutes");
-import subscriberGroupRoutes from "./Routes/subscriberGroup.routes";
+const subscriberGroupRoutes = require("./Routes/subscriberGroupRoutes");
 
 app.use("/api/auth", authRoutes);
 app.use("/api/blog", blogRoutes);
@@ -82,6 +82,6 @@ app.listen(PORT, () =>
   console.log(
     `Server running in ${
       process.env.NODE_ENV || "development"
-    } mode on port ${PORT}`
-  )
+    } mode on port ${PORT}`,
+  ),
 );
