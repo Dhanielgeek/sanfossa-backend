@@ -43,13 +43,14 @@ exports.createOrder = async (req, res) => {
       );
     }
 
-    // --- Create order ---
-    const order = await Order.create([{ items, userInfo }], { session });
+    // --- Create order correctly so pre-save hook runs ---
+    const order = new Order({ items, userInfo });
+    await order.save({ session });
 
     await session.commitTransaction();
     session.endSession();
 
-    res.status(201).json({ success: true, data: order[0] });
+    res.status(201).json({ success: true, data: order });
   } catch (error) {
     await session.abortTransaction();
     session.endSession();
