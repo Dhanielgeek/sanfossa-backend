@@ -37,6 +37,11 @@ const BookSchema = new mongoose.Schema(
     ageRating: String,
 
     coverImage: String,
+
+    pdfFile: {
+      type: String,
+    },
+
     images: [String],
     audioUrl: String,
     videoUrl: String,
@@ -57,7 +62,7 @@ const BookSchema = new mongoose.Schema(
       ref: "Admin",
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 module.exports = mongoose.model("Book", BookSchema);
