@@ -32,14 +32,19 @@ router.get("/:id/download", protect, downloadBook);
    ADMIN ROUTES
 ======================= */
 
-// Create story (with image upload)
-router.post("/", adminProtect, upload.single("coverImage"), createBook);
+const bookUploads = upload.fields([
+  { name: "coverImage", maxCount: 1 },
+  { name: "pdfFile", maxCount: 1 }, // <-- PDF field
+]);
+
+// Create story (with image + PDF upload)
+router.post("/", adminProtect, bookUploads, createBook);
+
+// Update story (optional image + PDF upload)
+router.put("/:id", adminProtect, bookUploads, updateBook);
 
 // Get all stories (draft + published)
 router.get("/admin/all", adminProtect, getAllBooksAdmin);
-
-// Update story (optional image upload)
-router.put("/:id", adminProtect, upload.single("coverImage"), updateBook);
 
 // Delete story
 router.delete("/:id", adminProtect, deleteBook);

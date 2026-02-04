@@ -1,6 +1,5 @@
-
 // models/SubscriberGroup.js
-import mongoose from "mongoose";
+const mongoose = require("mongoose");
 
 const SubscriberGroupSchema = new mongoose.Schema(
   {
@@ -20,11 +19,11 @@ const SubscriberGroupSchema = new mongoose.Schema(
   {
     timestamps: true,
     versionKey: false,
-  }
+  },
 );
 
 const SubscriberGroup =
   mongoose.models.SubscriberGroup ||
   mongoose.model("SubscriberGroup", SubscriberGroupSchema);
 
-export default SubscriberGroup;
+module.exports = SubscriberGroup;
