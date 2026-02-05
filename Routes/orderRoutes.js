@@ -61,7 +61,7 @@ router.post("/", async (req, res) => {
 // GET /api/v1/orders/my (Optional: For logged-in users)
 // ----------------------
 // Keep this if you want a user to see their orders, but only applies to logged-in users
-const { protect } = require("../middleware/auth");
+const { protect } = require("../middleware/authAdmin");
 router.get("/my", protect, async (req, res) => {
   try {
     const orders = await Order.find({
