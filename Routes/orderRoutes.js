@@ -1,79 +1,113 @@
 const express = require("express");
 const router = express.Router();
-const Order = require("../Models/BooksOrdersModel");
-const Book = require("../Models/BooksModel"); // Make sure you have the Book model
 const mongoose = require("mongoose");
 
-// ----------------------
-// POST /api/v1/orders (Guest Checkout)
-// ----------------------
+const Order = require("../Models/BooksOrdersModel");
+const Book = require("../Models/BooksModel");
+const { adminProtect } = require("../middleware/authAdmin");
+
+/**
+ * -----------------------------------
+ * POST /api/v1/orders
+ * Guest checkout (NO AUTH REQUIRED)
+ * -----------------------------------
+ */
 router.post("/", async (req, res) => {
-  const { items, userInfo } = req.body;
-
-  if (!items || items.length === 0) {
-    return res.status(400).json({ success: false, error: "No items provided" });
-  }
-  if (
-    !userInfo ||
-    !userInfo.name ||
-    !userInfo.email ||
-    !userInfo.phone ||
-    !userInfo.address
-  ) {
-    return res
-      .status(400)
-      .json({ success: false, error: "Incomplete user info" });
-  }
-
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
   try {
-    // Decrement stock safely
-    for (const item of items) {
-      const book = await Book.findById(item.book).session(session);
-      if (!book) throw new Error(`Book not found: ${item.book}`);
-      if (book.stockQuantity < item.quantity)
-        throw new Error(`Insufficient stock for: ${book.title}`);
+    const { items, userInfo } = req.body;
 
-      await Book.findByIdAndUpdate(
-        item.book,
-        { $inc: { stockQuantity: -item.quantity } },
-        { session },
-      );
+    // ---- Validation ----
+    if (!Array.isArray(items) || items.length === 0) {
+      return res
+        .status(400)
+        .json({ success: false, error: "No items provided" });
     }
 
-    // Create order
-    const order = await Order.create([{ items, userInfo }], { session });
+    if (
+      !userInfo ||
+      !userInfo.name ||
+      !userInfo.email ||
+      !userInfo.phone ||
+      !userInfo.address
+    ) {
+      return res
+        .status(400)
+        .json({ success: false, error: "Incomplete user info" });
+    }
 
-    await session.commitTransaction();
-    session.endSession();
+    // ---- Stock Check & Update ----
+    for (const item of items) {
+      const bookId = item.book?._id || item.book;
 
-    res.status(201).json({ success: true, data: order[0] });
+      if (!mongoose.Types.ObjectId.isValid(bookId)) {
+        return res
+          .status(400)
+          .json({ success: false, error: "Invalid book ID" });
+      }
+
+      const book = await Book.findById(bookId);
+      if (!book) {
+        return res
+          .status(404)
+          .json({ success: false, error: "Book not found" });
+      }
+
+      if (book.stockQuantity < item.quantity) {
+        return res.status(400).json({
+          success: false,
+          error: `Insufficient stock for ${book.title}`,
+        });
+      }
+
+      book.stockQuantity -= item.quantity;
+      await book.save();
+    }
+
+    // ---- Create Order ----
+    const order = await Order.create({
+      items,
+      userInfo,
+    });
+
+    return res.status(201).json({
+      success: true,
+      data: order,
+    });
   } catch (error) {
-    await session.abortTransaction();
-    session.endSession();
-    res.status(400).json({ success: false, error: error.message });
+    console.error("CREATE ORDER ERROR:", error);
+    return res.status(500).json({
+      success: false,
+      error: "Server error while creating order",
+    });
   }
 });
 
-// ----------------------
-// GET /api/v1/orders/my (Optional: For logged-in users)
-// ----------------------
-// Keep this if you want a user to see their orders, but only applies to logged-in users
-// const { adminProtect } = require("../middleware/authAdmin");
-router.get("/my", async (req, res) => {
+/**
+ * -----------------------------------
+ * GET /api/v1/orders
+ * ADMIN – View ALL orders
+ * -----------------------------------
+ */
+router.get("/all", adminProtect, async (req, res) => {
   try {
-    const orders = await Order.find({
-      "userInfo.email": req.user.email,
-    }).populate({
-      path: "items.book",
-      select: "title price coverImage",
-    });
+    const orders = await Order.find()
+      .populate({
+        path: "items.book",
+        select: "title price coverImage",
+      })
+      .sort({ createdAt: -1 });
 
-    res.status(200).json({ success: true, count: orders.length, data: orders });
+    return res.status(200).json({
+      success: true,
+      count: orders.length,
+      data: orders,
+    });
   } catch (error) {
-    res.status(500).json({ success: false, error: "Server Error" });
+    console.error("GET ORDERS ERROR:", error);
+    return res.status(500).json({
+      success: false,
+      error: "Server error while fetching orders",
+    });
   }
 });
 
