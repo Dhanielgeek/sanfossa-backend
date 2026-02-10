@@ -1,9 +1,7 @@
-// models/Order.js
 const mongoose = require("mongoose");
 
 const OrderSchema = new mongoose.Schema({
   userInfo: {
-    // Guest info
     name: { type: String, required: true },
     email: { type: String, required: true },
     phone: { type: String, required: true },
@@ -27,15 +25,15 @@ const OrderSchema = new mongoose.Schema({
       },
     },
   ],
-  totalAmount: {
-    type: Number,
-    required: true,
-  },
 
   paymentStatus: {
     type: String,
     enum: ["Pending", "Paid", "Failed"],
     default: "Pending",
+  },
+  paymentReference: {
+    type: String,
+    required: true,
   },
   status: {
     type: String,
@@ -48,11 +46,4 @@ const OrderSchema = new mongoose.Schema({
   },
 });
 
-// Pre-save: calculate total
-OrderSchema.pre("save", async function () {
-  this.totalAmount = this.items.reduce(
-    (acc, item) => acc + item.quantity * item.priceAtPurchase,
-    0,
-  );
-});
 module.exports = mongoose.model("Order", OrderSchema);
