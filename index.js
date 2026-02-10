@@ -43,6 +43,7 @@ const uploadRoutes = require("./Routes/uploadRoutes");
 const subscribeRoutes = require("./Routes/subscribeRoutes");
 const healthRoutes = require("./Routes/healthRoutes");
 const subscriberGroupRoutes = require("./Routes/subscriberGroupRoutes");
+const paymentRoutes = require("./Routes/paymentroutes");
 
 app.use("/api/auth", authRoutes);
 app.use("/api/blog", blogRoutes);
@@ -61,6 +62,10 @@ app.use("/api/admin", adminDashboardRoutes);
 app.use("/api/uploads", uploadRoutes);
 // Health endpoints (e.g. MailerLite token validation)
 app.use("/api/health", healthRoutes);
+
+//Paystack Routes
+
+app.use("/api/payment", paymentRoutes);
 
 // 6. Health
 app.get("/", (req, res) => {
