@@ -12,23 +12,23 @@ const { initializePayment } = require("../services/paystackservice");
 exports.createOrder = async (req, res) => {
   const { items, userInfo } = req.body;
 
-  if (!items || items.length === 0) {
+  // ---- Validation ----
+  if (!items || items.length === 0)
     return res.status(400).json({ success: false, error: "No items provided" });
-  }
 
   if (
-    !userInfo ||
-    !userInfo.name ||
-    !userInfo.email ||
-    !userInfo.phone ||
-    !userInfo.address
-  ) {
+    !userInfo?.name ||
+    !userInfo?.email ||
+    !userInfo?.phone ||
+    !userInfo?.address
+  )
     return res
       .status(400)
       .json({ success: false, error: "Incomplete user info" });
-  }
 
+  // ---- Generate unique reference BEFORE creating order ----
   const reference = crypto.randomUUID();
+
   const session = await mongoose.startSession();
   session.startTransaction();
 
@@ -47,12 +47,12 @@ exports.createOrder = async (req, res) => {
       );
     }
 
-    // ---- Create order (payment pending) ----
+    // ---- Create order with reference ----
     const order = new Order({
       items,
       userInfo,
       paymentStatus: "Pending",
-      paymentReference: reference,
+      paymentReference: reference, // ✅ required
     });
 
     await order.save({ session });
@@ -63,10 +63,10 @@ exports.createOrder = async (req, res) => {
       0,
     );
 
-    // ---- Initialize Paystack ----
+    // ---- Initialize Paystack payment ----
     const paystackResponse = await initializePayment({
       email: userInfo.email,
-      amount, // amount in Naira → paystack expects kobo, your service should multiply by 100 if needed
+      amount: amount * 100, // Paystack expects kobo
       reference,
     });
 
@@ -89,6 +89,11 @@ exports.createOrder = async (req, res) => {
     await session.abortTransaction();
     session.endSession();
 
-    return res.status(400).json({ success: false, error: error.message });
+    console.error("CREATE ORDER ERROR:", error.message);
+
+    return res.status(500).json({
+      success: false,
+      error: "Server error while creating order",
+    });
   }
 };
