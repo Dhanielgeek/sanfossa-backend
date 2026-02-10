@@ -3,7 +3,7 @@ const crypto = require("crypto");
 
 const Order = require("../Models/BooksOrdersModel");
 const Book = require("../Models/BooksModel");
-const { initializePayment } = require("../services/paystack.service");
+const { initializePayment } = require("../services/paystackservice");
 
 /**
  * -----------------------------------
