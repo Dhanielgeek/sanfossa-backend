@@ -5,69 +5,77 @@ const Order = require("../Models/BooksOrdersModel");
 const Book = require("../Models/BooksModel");
 const { initializePayment } = require("../services/paystackservice");
 
-/**
- * POST /api/v1/orders
- * Guest checkout + Paystack init
- */
 exports.createOrder = async (req, res) => {
   const { items, userInfo } = req.body;
 
   // ---- Validation ----
-  if (!items || items.length === 0)
-    return res.status(400).json({ success: false, error: "No items provided" });
+  if (!items || items.length === 0) {
+    return res.status(400).json({
+      success: false,
+      error: "No items provided",
+    });
+  }
 
   if (
     !userInfo?.name ||
     !userInfo?.email ||
     !userInfo?.phone ||
     !userInfo?.address
-  )
-    return res
-      .status(400)
-      .json({ success: false, error: "Incomplete user info" });
+  ) {
+    return res.status(400).json({
+      success: false,
+      error: "Incomplete user info",
+    });
+  }
 
-  // ---- Generate unique reference BEFORE creating order ----
-  const reference = crypto.randomUUID();
+  // ---- Generate payment reference ----
+  const reference = `ORD-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`;
 
   const session = await mongoose.startSession();
   session.startTransaction();
 
   try {
-    // ---- Stock check & decrement ----
+    let totalAmount = 0;
+
+    // ---- Stock validation & deduction ----
     for (const item of items) {
       const book = await Book.findById(item.book).session(session);
-      if (!book) throw new Error(`Book not found: ${item.book}`);
-      if (book.stockQuantity < item.quantity)
-        throw new Error(`Insufficient stock for: ${book.title}`);
 
+      if (!book) throw new Error(`Book not found`);
+      if (book.stockQuantity < item.quantity) {
+        throw new Error(`Insufficient stock for ${book.title}`);
+      }
+
+      // Deduct stock
       await Book.findByIdAndUpdate(
         item.book,
         { $inc: { stockQuantity: -item.quantity } },
         { session },
       );
+
+      totalAmount += item.priceAtPurchase * item.quantity;
     }
 
-    // ---- Create order with reference ----
-    const order = new Order({
-      items,
-      userInfo,
-      paymentStatus: "Pending",
-      paymentReference: reference, // ✅ required
-    });
-
-    await order.save({ session });
-
-    // ---- Calculate total for Paystack ----
-    const amount = items.reduce(
-      (sum, item) => sum + item.priceAtPurchase * item.quantity,
-      0,
+    // ---- Create order ----
+    const order = await Order.create(
+      [
+        {
+          items,
+          userInfo,
+          totalAmount,
+          paymentStatus: "Pending",
+          paymentReference: reference,
+        },
+      ],
+      { session },
     );
 
-    // ---- Initialize Paystack payment ----
+    // ---- Initialize Paystack ----
     const paystackResponse = await initializePayment({
       email: userInfo.email,
-      amount: amount * 100, // Paystack expects kobo
+      amount: totalAmount * 100, // kobo
       reference,
+      callback_url: `${process.env.FRONTEND_URL}/payment/verify/${reference}`,
     });
 
     await session.commitTransaction();
@@ -75,14 +83,13 @@ exports.createOrder = async (req, res) => {
 
     return res.status(201).json({
       success: true,
-      message: "Order created. Proceed to payment.",
+      message: "Order created successfully",
       data: {
-        orderId: order._id,
+        orderId: order[0]._id,
         reference,
-        authorization_url: paystackResponse.data.authorization_url,
-        userInfo,
-        items,
-        paymentStatus: order.paymentStatus,
+        authorization_url: paystackResponse?.data?.authorization_url,
+        totalAmount,
+        paymentStatus: "Pending",
       },
     });
   } catch (error) {
@@ -93,7 +100,7 @@ exports.createOrder = async (req, res) => {
 
     return res.status(500).json({
       success: false,
-      error: "Server error while creating order",
+      error: error.message || "Server error while creating order",
     });
   }
 };
