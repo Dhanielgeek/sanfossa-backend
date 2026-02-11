@@ -1,9 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const mongoose = require("mongoose");
-
 const Order = require("../Models/BooksOrdersModel");
-const Book = require("../Models/BooksModel");
 const { adminProtect } = require("../middleware/authAdmin");
 
 /**
@@ -16,11 +13,11 @@ router.post("/", async (req, res) => {
   try {
     const { items, userInfo } = req.body;
 
-    // ---- Validation ----
     if (!Array.isArray(items) || items.length === 0) {
-      return res
-        .status(400)
-        .json({ success: false, error: "No items provided" });
+      return res.status(400).json({
+        success: false,
+        error: "No items provided",
+      });
     }
 
     if (
@@ -30,40 +27,12 @@ router.post("/", async (req, res) => {
       !userInfo.phone ||
       !userInfo.address
     ) {
-      return res
-        .status(400)
-        .json({ success: false, error: "Incomplete user info" });
+      return res.status(400).json({
+        success: false,
+        error: "Incomplete user info",
+      });
     }
 
-    // ---- Stock Check & Update ----
-    for (const item of items) {
-      const bookId = item.book?._id || item.book;
-
-      if (!mongoose.Types.ObjectId.isValid(bookId)) {
-        return res
-          .status(400)
-          .json({ success: false, error: "Invalid book ID" });
-      }
-
-      const book = await Book.findById(bookId);
-      if (!book) {
-        return res
-          .status(404)
-          .json({ success: false, error: "Book not found" });
-      }
-
-      if (book.stockQuantity < item.quantity) {
-        return res.status(400).json({
-          success: false,
-          error: `Insufficient stock for ${book.title}`,
-        });
-      }
-
-      book.stockQuantity -= item.quantity;
-      await book.save();
-    }
-
-    // ---- Create Order ----
     const order = await Order.create({
       items,
       userInfo,
@@ -71,6 +40,7 @@ router.post("/", async (req, res) => {
 
     return res.status(201).json({
       success: true,
+      message: "Order created successfully",
       data: order,
     });
   } catch (error) {
@@ -84,7 +54,7 @@ router.post("/", async (req, res) => {
 
 /**
  * -----------------------------------
- * GET /api/v1/orders
+ * GET /api/v1/orders/all
  * ADMIN – View ALL orders
  * -----------------------------------
  */

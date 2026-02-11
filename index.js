@@ -43,7 +43,7 @@ const uploadRoutes = require("./Routes/uploadRoutes");
 const subscribeRoutes = require("./Routes/subscribeRoutes");
 const healthRoutes = require("./Routes/healthRoutes");
 const subscriberGroupRoutes = require("./Routes/subscriberGroupRoutes");
-const paymentRoutes = require("./Routes/paymentroutes");
+const transactionRoutes = require("./Routes/transactionsRoutes");
 
 app.use("/api/auth", authRoutes);
 app.use("/api/blog", blogRoutes);
@@ -65,7 +65,7 @@ app.use("/api/health", healthRoutes);
 
 //Paystack Routes
 
-app.use("/api/payment", paymentRoutes);
+app.use("/api/transactions", transactionRoutes);
 
 // 6. Health
 app.get("/", (req, res) => {
