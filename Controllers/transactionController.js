@@ -28,7 +28,7 @@ exports.initializeTransaction = async (req, res) => {
       email: order.userInfo.email,
       amount: amount * 100, // kobo
       reference,
-      callback_url: `${process.env.FRONTEND_URL}/payment/verify/${reference}`,
+      callback_url: `${process.env.FRONTEND_URL}/verify/${reference}`,
     });
 
     const transaction = await Transaction.create({
