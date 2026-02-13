@@ -116,7 +116,7 @@ router.get("/verify/:reference", async (req, res) => {
     // ✅ Update order
     const order = transaction.order;
     order.paymentStatus = "Paid";
-    order.status = "Paid"; // 🔥 Update fulfillment status
+    order.status = "Payment Completed"; // 🔥 Update fulfillment status
     await order.save();
 
     // ✅ Deduct stock AFTER payment success
