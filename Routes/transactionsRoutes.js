@@ -41,7 +41,7 @@ router.post("/initialize", async (req, res) => {
       email: order.userInfo.email,
       amount: amount * 100,
       reference,
-      callback_url: `${process.env.FRONTEND_URL}/verify/${reference}`,
+      callback_url: `${process.env.FRONTEND_URL}/verify/`,
     });
 
     await Transaction.create({
