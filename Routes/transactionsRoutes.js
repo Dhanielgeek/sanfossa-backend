@@ -82,9 +82,18 @@ router.get("/verify/:reference", async (req, res) => {
     );
 
     if (!transaction)
-      return res
-        .status(404)
-        .json({ success: false, error: "Transaction not found" });
+      return res.status(404).json({
+        success: false,
+        error: "Transaction not found",
+      });
+
+    // Prevent double verification
+    if (transaction.paymentStatus === "Paid") {
+      return res.status(200).json({
+        success: true,
+        message: "Transaction already verified",
+      });
+    }
 
     const paystackResponse = await verifyPayment(reference);
 
@@ -107,6 +116,7 @@ router.get("/verify/:reference", async (req, res) => {
     // ✅ Update order
     const order = transaction.order;
     order.paymentStatus = "Paid";
+    order.status = "Paid"; // 🔥 Update fulfillment status
     await order.save();
 
     // ✅ Deduct stock AFTER payment success
@@ -118,7 +128,7 @@ router.get("/verify/:reference", async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: "Payment verified successfully",
+      message: "Payment verified and order updated",
     });
   } catch (error) {
     console.error("VERIFY ERROR:", error);

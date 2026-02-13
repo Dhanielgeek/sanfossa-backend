@@ -81,4 +81,29 @@ router.get("/all", adminProtect, async (req, res) => {
   }
 });
 
+/**
+ * -----------------------------------
+ * DELETE /api/orders/delete-all
+ * ADMIN – Delete ALL orders
+ * -----------------------------------
+ */
+
+router.delete("/delete-all", adminProtect, async (req, res) => {
+  try {
+    const deleted = await Order.deleteMany({});
+
+    return res.status(200).json({
+      success: true,
+      message: "All orders deleted successfully",
+      deletedCount: deleted.deletedCount,
+    });
+  } catch (error) {
+    console.error("DELETE ALL ORDERS ERROR:", error);
+    return res.status(500).json({
+      success: false,
+      error: "Server error while deleting orders",
+    });
+  }
+});
+
 module.exports = router;
