@@ -122,6 +122,18 @@ exports.subscribe = async (req, res) => {
 
     if (mlToken) {
       try {
+        // If the SubscriberGroup model is available we want to clear existing
+        // records so that local storage always reflects whatever MailerLite currently
+        // returns.  This avoids a stale cache stopping the logic and ensures the
+        // later check for "SubscriberGroup" succeeds by inserting fresh data.
+        if (SubscriberGroup) {
+          try {
+            await SubscriberGroup.deleteMany({});
+          } catch (delErr) {
+            console.warn("[GROUP_CLEAR][WARN] failed to clear groups before sync", delErr?.message || delErr);
+          }
+        }
+
         // 1) Retrieve all groups from MailerLite
         const groupsRes = await axios.get("https://connect.mailerlite.com/api/groups", {
           headers: {
