@@ -134,11 +134,14 @@ exports.subscribe = async (req, res) => {
       }
 
       try {
+        // Clear all groups before fetching from MailerLite to avoid race conditions
         if (SubscriberGroup) {
           try {
-            await SubscriberGroup.deleteMany({});
+            const delRes = await SubscriberGroup.deleteMany({});
+            console.log("[GROUP_CLEAR] deleted", delRes.deletedCount, "groups");
           } catch (delErr) {
-            console.warn("[GROUP_CLEAR][WARN] failed to clear groups before sync", delErr?.message || delErr);
+            console.error("[GROUP_CLEAR][ERROR] failed to clear groups before sync", delErr?.message || delErr);
+            throw delErr; // don't continue if we can't clear
           }
         }
 
@@ -149,45 +152,73 @@ exports.subscribe = async (req, res) => {
           },
           timeout: 10000,
         });
-        const groups = Array.isArray(groupsRes.data) ? groupsRes.data : groupsRes.data?.data ?? [];
+        
+        // safely extract array from various response formats
+        let groups = [];
+        if (Array.isArray(groupsRes.data)) {
+          groups = groupsRes.data;
+          console.log("[GROUP_FETCH] got array directly, count:", groups.length);
+        } else if (groupsRes.data?.data && Array.isArray(groupsRes.data.data)) {
+          groups = groupsRes.data.data;
+          console.log("[GROUP_FETCH] got array from .data property, count:", groups.length);
+        } else {
+          console.warn("[GROUP_FETCH][WARN] unexpected groups response format:", typeof groupsRes.data, Object.keys(groupsRes.data || {}));
+        }
 
         // determine last group id directly from response to avoid later DB dependence
         let lastGroupId = null;
-        if (Array.isArray(groups) && groups.length) {
+        if (groups.length > 0) {
           const last = groups[groups.length - 1];
           lastGroupId = last?.id ?? last?.group_id ?? last?.uuid ?? last?.gid ?? null;
           if (lastGroupId) {
             console.log("[GROUP_SYNC] lastGroupId from response", lastGroupId);
+          } else {
+            console.warn("[GROUP_SYNC][WARN] could not extract group id from last group object", last);
           }
+        } else {
+          console.warn("[GROUP_SYNC][WARN] no groups returned from MailerLite");
         }
 
-        if (SubscriberGroup && Array.isArray(groups)) {
-          await Promise.all(
-            groups.map(async (g) => {
-              const gid = g?.id ?? g?.group_id ?? g?.uuid ?? g?.gid ?? null;
-              const name = g?.name ?? g?.title ?? "";
-              if (!gid) return;
-              try {
-                await SubscriberGroup.updateOne(
-                  { groupId: String(gid) },
-                  { $setOnInsert: { groupId: String(gid), name: String(name) } },
-                  { upsert: true }
-                );
-              } catch (innerErr) {
-                console.warn("[GROUP_SYNC][WARN] failed for group", gid, innerErr?.message || innerErr);
-              }
-            })
-          );
+        if (SubscriberGroup && Array.isArray(groups) && groups.length > 0) {
+          // process groups sequentially with a small delay to avoid rate limits
+          for (const g of groups) {
+            const gid = g?.id ?? g?.group_id ?? g?.uuid ?? g?.gid ?? null;
+            const name = g?.name ?? g?.title ?? "";
+            if (!gid) {
+              console.warn("[GROUP_SYNC][WARN] group object has no id-like field", g);
+              continue;
+            }
+            try {
+              await SubscriberGroup.updateOne(
+                { groupId: String(gid) },
+                { $setOnInsert: { groupId: String(gid), name: String(name) } },
+                { upsert: true }
+              );
+              console.log("[GROUP_SYNC] synced group", gid, "-", name);
+            } catch (innerErr) {
+              console.error("[GROUP_SYNC][ERROR] failed for group", gid, innerErr?.message || innerErr);
+            }
+            // small delay between DB writes
+            await new Promise(resolve => setTimeout(resolve, 10));
+          }
+        } else if (!groups || groups.length === 0) {
+          console.warn("[GROUP_SYNC][WARN] no groups to sync");
         }
 
         try {
+          // build fields object, excluding undefined values
+          const fields = {};
+          if (firstName && typeof firstName === "string") fields.name = firstName.trim();
+          if (lastName && typeof lastName === "string") fields.last_name = lastName.trim();
+
           const mlBody = {
-            email,
-            fields: {
-              name: firstName || undefined,
-              last_name: lastName || undefined,
-            },
+            email: email.trim(),
           };
+          if (Object.keys(fields).length > 0) {
+            mlBody.fields = fields;
+          }
+
+          console.log("[MAILERLITE] creating subscriber:", mlBody);
           const mlCreateRes = await axios.post(
             "https://connect.mailerlite.com/api/subscribers",
             mlBody,
@@ -201,38 +232,55 @@ exports.subscribe = async (req, res) => {
             }
           );
           const mlData = mlCreateRes.data;
-          const mlId = mlData?.id ?? mlData?.data?.id ?? null;
-          if (mlId) {
+          const mlId = mlData?.id ?? mlData?.data?.id ?? mlData?.subscriber?.id ?? null;
+          
+          if (!mlId) {
+            console.error("[MAILERLITE][ERROR] no subscriber id in response", mlData);
+          } else {
+            console.log("[MAILERLITE] subscriber created with id:", mlId);
+            
             try {
-              await Subscriber.findOneAndUpdate({ email }, { mailerId: String(mlId) }, { new: true });
+              const updateRes = await Subscriber.findOneAndUpdate(
+                { email },
+                { mailerId: String(mlId) },
+                { new: true }
+              );
+              if (!updateRes) {
+                console.error("[SUBSCRIBE][ERROR] subscriber disappeared after creation", email);
+              } else {
+                console.log("[SUBSCRIBE] saved mailerId locally for", email);
+              }
             } catch (uErr) {
-              console.warn("[SUBSCRIBE][WARN] failed to save mailerId locally", uErr?.message || uErr);
+              console.error("[SUBSCRIBE][ERROR] failed to save mailerId locally", uErr?.message || uErr);
             }
 
-            // use lastGroupId computed above rather than querying DB
             if (lastGroupId) {
-              try {
-                await axios.post(
-                  `https://connect.mailerlite.com/api/subscribers/${mlId}/groups/${lastGroupId}`,
-                  null,
-                  {
-                    headers: {
-                      Authorization: `Bearer ${mlToken}`,
-                      Accept: "application/json",
-                    },
-                    timeout: 10000,
-                  }
-                );
-                console.log("[MAILERLITE] added subscriber to group", lastGroupId);
-              } catch (addErr) {
-                console.warn("[MAILERLITE][WARN] failed to add subscriber to group", addErr?.response?.data ?? addErr?.message ?? addErr);
+              if (!String(mlId).trim() || !String(lastGroupId).trim()) {
+                console.error("[MAILERLITE][ERROR] invalid mlId or groupId:", mlId, lastGroupId);
+              } else {
+                try {
+                  await axios.post(
+                    `https://connect.mailerlite.com/api/subscribers/${String(mlId).trim()}/groups/${String(lastGroupId).trim()}`,
+                    {},
+                    {
+                      headers: {
+                        Authorization: `Bearer ${mlToken}`,
+                        Accept: "application/json",
+                      },
+                      timeout: 10000,
+                    }
+                  );
+                  console.log("[MAILERLITE] added subscriber", mlId, "to group", lastGroupId);
+                } catch (addErr) {
+                  console.error("[MAILERLITE][ERROR] failed to add subscriber to group:", addErr?.response?.data ?? addErr?.message ?? addErr);
+                }
               }
             } else {
               console.warn("[GROUP_SYNC][WARN] no group id available to add subscriber");
             }
           }
         } catch (mlErr) {
-          console.warn("[MAILERLITE][ERROR] create subscriber failed:", mlErr?.response?.data ?? mlErr?.message ?? mlErr);
+          console.error("[MAILERLITE][ERROR] create subscriber failed:", mlErr?.response?.data ?? mlErr?.message ?? mlErr);
         }
       } catch (errGroups) {
         console.warn("[MAILERLITE][WARN] failed to fetch groups or sync:", errGroups?.response?.data ?? errGroups?.message ?? errGroups);
