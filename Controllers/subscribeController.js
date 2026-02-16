@@ -254,7 +254,9 @@ exports.subscribe = async (req, res) => {
               console.error("[SUBSCRIBE][ERROR] failed to save mailerId locally", uErr?.message || uErr);
             }
 
+            // add subscriber to group if we have a valid group id
             if (lastGroupId) {
+              // validate both ids are non-empty strings
               if (!String(mlId).trim() || !String(lastGroupId).trim()) {
                 console.error("[MAILERLITE][ERROR] invalid mlId or groupId:", mlId, lastGroupId);
               } else {
