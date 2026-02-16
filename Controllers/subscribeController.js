@@ -116,16 +116,24 @@ exports.subscribe = async (req, res) => {
       verificationToken,
     });
 
-    // --- MailerLite sync: fetch groups, sync groups to DB, create external subscriber ---
-    // Allow token to come from a header (for testing) or from server env var
-    const mlToken = req.headers["x-mailerlite-token"] || process.env.MAILERLITE_TOKEN;
+    // respond early so the caller isn't blocked by external API work
+    res.status(201).json({
+      success: true,
+      message: useDoubleOptIn
+        ? "Thanks! Please check your email to confirm your subscription."
+        : "Subscribed successfully",
+      data: { id: created._id },
+    });
 
-    if (mlToken) {
+    // background synchronization with MailerLite
+    (async () => {
+      const mlToken = req.headers["x-mailerlite-token"] || process.env.MAILERLITE_TOKEN;
+      if (!mlToken) {
+        console.warn("[MAILERLITE][INFO] no MailerLite token provided; skipping external sync");
+        return;
+      }
+
       try {
-        // If the SubscriberGroup model is available we want to clear existing
-        // records so that local storage always reflects whatever MailerLite currently
-        // returns.  This avoids a stale cache stopping the logic and ensures the
-        // later check for "SubscriberGroup" succeeds by inserting fresh data.
         if (SubscriberGroup) {
           try {
             await SubscriberGroup.deleteMany({});
@@ -134,7 +142,6 @@ exports.subscribe = async (req, res) => {
           }
         }
 
-        // 1) Retrieve all groups from MailerLite
         const groupsRes = await axios.get("https://connect.mailerlite.com/api/groups", {
           headers: {
             Authorization: `Bearer ${mlToken}`,
@@ -142,28 +149,37 @@ exports.subscribe = async (req, res) => {
           },
           timeout: 10000,
         });
-
         const groups = Array.isArray(groupsRes.data) ? groupsRes.data : groupsRes.data?.data ?? [];
 
-        // 2) Sync groups to database (insert only if not present)
-        if (SubscriberGroup && Array.isArray(groups)) {
-          for (const g of groups) {
-            const gid = g?.id ?? g?.group_id ?? g?.uuid ?? g?.gid ?? null;
-            const name = g?.name ?? g?.title ?? "";
-            if (!gid) continue;
-            try {
-              await SubscriberGroup.updateOne(
-                { groupId: String(gid) },
-                { $setOnInsert: { groupId: String(gid), name: String(name) } },
-                { upsert: true }
-              );
-            } catch (innerErr) {
-              console.warn("[GROUP_SYNC][WARN] failed for group", gid, innerErr?.message || innerErr);
-            }
+        // determine last group id directly from response to avoid later DB dependence
+        let lastGroupId = null;
+        if (Array.isArray(groups) && groups.length) {
+          const last = groups[groups.length - 1];
+          lastGroupId = last?.id ?? last?.group_id ?? last?.uuid ?? last?.gid ?? null;
+          if (lastGroupId) {
+            console.log("[GROUP_SYNC] lastGroupId from response", lastGroupId);
           }
         }
 
-        // 3) Create subscriber in MailerLite
+        if (SubscriberGroup && Array.isArray(groups)) {
+          await Promise.all(
+            groups.map(async (g) => {
+              const gid = g?.id ?? g?.group_id ?? g?.uuid ?? g?.gid ?? null;
+              const name = g?.name ?? g?.title ?? "";
+              if (!gid) return;
+              try {
+                await SubscriberGroup.updateOne(
+                  { groupId: String(gid) },
+                  { $setOnInsert: { groupId: String(gid), name: String(name) } },
+                  { upsert: true }
+                );
+              } catch (innerErr) {
+                console.warn("[GROUP_SYNC][WARN] failed for group", gid, innerErr?.message || innerErr);
+              }
+            })
+          );
+        }
+
         try {
           const mlBody = {
             email,
@@ -172,7 +188,6 @@ exports.subscribe = async (req, res) => {
               last_name: lastName || undefined,
             },
           };
-
           const mlCreateRes = await axios.post(
             "https://connect.mailerlite.com/api/subscribers",
             mlBody,
@@ -185,8 +200,6 @@ exports.subscribe = async (req, res) => {
               timeout: 10000,
             }
           );
-
-          // If MailerLite returns an id, update local subscriber with mailerId
           const mlData = mlCreateRes.data;
           const mlId = mlData?.id ?? mlData?.data?.id ?? null;
           if (mlId) {
@@ -196,69 +209,39 @@ exports.subscribe = async (req, res) => {
               console.warn("[SUBSCRIBE][WARN] failed to save mailerId locally", uErr?.message || uErr);
             }
 
-            // After saving the mailerId, attempt to subscribe this new user
-            // to the most recently created group in our database.
-            if (SubscriberGroup) {
+            // use lastGroupId computed above rather than querying DB
+            if (lastGroupId) {
               try {
-                const lastGroup = await SubscriberGroup.findOne()
-                  .sort({ createdAt: -1 })
-                  .select("groupId");
-                const groupId = lastGroup?.groupId ?? null;
-                if (groupId) {
-                  try {
-                    await axios.post(
-                      `https://connect.mailerlite.com/api/subscribers/${mlId}/groups/${groupId}`,
-                      null,
-                      {
-                        headers: {
-                          Authorization: `Bearer ${mlToken}`,
-                          Accept: "application/json",
-                        },
-                        timeout: 10000,
-                      }
-                    );
-                  } catch (addErr) {
-                    console.warn("[MAILERLITE][WARN] failed to add subscriber to group", addErr?.response?.data ?? addErr?.message ?? addErr);
+                await axios.post(
+                  `https://connect.mailerlite.com/api/subscribers/${mlId}/groups/${lastGroupId}`,
+                  null,
+                  {
+                    headers: {
+                      Authorization: `Bearer ${mlToken}`,
+                      Accept: "application/json",
+                    },
+                    timeout: 10000,
                   }
-                }
-              } catch (grpErr) {
-                console.warn("[GROUP_LOOKUP][WARN] could not fetch latest group", grpErr?.message ?? grpErr);
+                );
+                console.log("[MAILERLITE] added subscriber to group", lastGroupId);
+              } catch (addErr) {
+                console.warn("[MAILERLITE][WARN] failed to add subscriber to group", addErr?.response?.data ?? addErr?.message ?? addErr);
               }
+            } else {
+              console.warn("[GROUP_SYNC][WARN] no group id available to add subscriber");
             }
           }
         } catch (mlErr) {
           console.warn("[MAILERLITE][ERROR] create subscriber failed:", mlErr?.response?.data ?? mlErr?.message ?? mlErr);
-          // don't throw — backend subscription should not fail because of third-party errors
         }
       } catch (errGroups) {
         console.warn("[MAILERLITE][WARN] failed to fetch groups or sync:", errGroups?.response?.data ?? errGroups?.message ?? errGroups);
       }
-    } else {
-      console.warn("[MAILERLITE][INFO] no MailerLite token provided; skipping external sync");
-    }
+    })().catch((bgErr) => {
+      console.error("[SUBSCRIBE][BG_ERROR] unexpected error during background sync", bgErr);
+    });
 
-    // If double opt-in, send verification email here via your email service.
-    // await sendVerificationEmail(email, verificationToken);
-
-    // Attempt to fetch the most recent local record to include id + mailerId
-    try {
-      const latest = await Subscriber.findOne({ email }).select("_id mailerId");
-      return res.status(201).json({
-        success: true,
-        message: useDoubleOptIn
-          ? "Thanks! Please check your email to confirm your subscription."
-          : "Subscribed successfully",
-        data: { id: latest?._id, mailerId: latest?.mailerId ?? null },
-      });
-    } catch (finalErr) {
-      // Still return success even if fetching the id failed
-      return res.status(201).json({
-        success: true,
-        message: useDoubleOptIn
-          ? "Thanks! Please check your email to confirm your subscription."
-          : "Subscribed successfully",
-      });
-    }
+    return;
   } catch (err) {
     // Handle duplicate key race condition (E11000)
     if (err?.code === 11000 && err?.keyPattern?.email) {
