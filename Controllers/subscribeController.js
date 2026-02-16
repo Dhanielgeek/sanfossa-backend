@@ -183,6 +183,36 @@ exports.subscribe = async (req, res) => {
             } catch (uErr) {
               console.warn("[SUBSCRIBE][WARN] failed to save mailerId locally", uErr?.message || uErr);
             }
+
+            // After saving the mailerId, attempt to subscribe this new user
+            // to the most recently created group in our database.
+            if (SubscriberGroup) {
+              try {
+                const lastGroup = await SubscriberGroup.findOne()
+                  .sort({ createdAt: -1 })
+                  .select("groupId");
+                const groupId = lastGroup?.groupId ?? null;
+                if (groupId) {
+                  try {
+                    await axios.post(
+                      `https://connect.mailerlite.com/api/subscribers/${mlId}/groups/${groupId}`,
+                      null,
+                      {
+                        headers: {
+                          Authorization: `Bearer ${mlToken}`,
+                          Accept: "application/json",
+                        },
+                        timeout: 10000,
+                      }
+                    );
+                  } catch (addErr) {
+                    console.warn("[MAILERLITE][WARN] failed to add subscriber to group", addErr?.response?.data ?? addErr?.message ?? addErr);
+                  }
+                }
+              } catch (grpErr) {
+                console.warn("[GROUP_LOOKUP][WARN] could not fetch latest group", grpErr?.message ?? grpErr);
+              }
+            }
           }
         } catch (mlErr) {
           console.warn("[MAILERLITE][ERROR] create subscriber failed:", mlErr?.response?.data ?? mlErr?.message ?? mlErr);
