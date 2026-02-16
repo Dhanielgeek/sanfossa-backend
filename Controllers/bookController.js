@@ -6,14 +6,33 @@ const uploadToCloudinary = require("../utill/uploadToCloudinary");
  */
 exports.createBook = async (req, res) => {
   try {
-    if (!req.file) {
+    if (!req.files?.coverImage) {
       return res.status(400).json({
         success: false,
         message: "Cover image is required",
       });
     }
 
-    const uploadedImage = await uploadToCloudinary(req.file.buffer, "stories");
+    // Upload cover image
+    const coverUpload = await uploadToCloudinary(
+      req.files.coverImage[0].buffer,
+      {
+        folder: "stories/covers",
+        resourceType: "image",
+      },
+    );
+
+    // Upload PDF (optional or required — your choice)
+    let pdfUrl = null;
+
+    if (req.files?.pdfFile) {
+      const pdfUpload = await uploadToCloudinary(req.files.pdfFile[0].buffer, {
+        folder: "stories/pdfs",
+        resourceType: "raw",
+      });
+
+      pdfUrl = pdfUpload.secure_url;
+    }
 
     const book = await Book.create({
       title: req.body.title,
@@ -30,10 +49,11 @@ exports.createBook = async (req, res) => {
       location: req.body.location,
       readingTime: Number(req.body.readingTime),
       ageRating: req.body.ageRating,
-
       price: Number(req.body.price) || 0,
 
-      coverImage: uploadedImage.secure_url,
+      coverImage: coverUpload.secure_url,
+      pdfFile: pdfUrl, // 👈 PDF stored here
+
       status: req.body.status || "draft",
       createdBy: req.admin.id,
     });
@@ -62,12 +82,25 @@ exports.updateBook = async (req, res) => {
       updates.tags = updates.tags.split(",").map((tag) => tag.trim());
     }
 
-    if (req.file) {
-      const uploadedImage = await uploadToCloudinary(
-        req.file.buffer,
-        "stories"
+    // Replace cover image
+    if (req.files?.coverImage) {
+      const coverUpload = await uploadToCloudinary(
+        req.files.coverImage[0].buffer,
+        {
+          folder: "stories/covers",
+          resourceType: "image",
+        },
       );
-      updates.coverImage = uploadedImage.secure_url;
+      updates.coverImage = coverUpload.secure_url;
+    }
+
+    // Replace PDF
+    if (req.files?.pdfFile) {
+      const pdfUpload = await uploadToCloudinary(req.files.pdfFile[0].buffer, {
+        folder: "stories/pdfs",
+        resourceType: "raw",
+      });
+      updates.pdfFile = pdfUpload.secure_url;
     }
 
     if (updates.price) updates.price = Number(updates.price);

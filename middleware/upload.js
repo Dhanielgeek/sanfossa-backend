@@ -3,15 +3,19 @@ const multer = require("multer");
 const storage = multer.memoryStorage();
 
 const fileFilter = (req, file, cb) => {
-  if (!file.mimetype.startsWith("image")) {
-    cb(new Error("Only image files are allowed"), false);
-  } else {
+  // Allow images or PDFs
+  if (
+    file.mimetype.startsWith("image") ||
+    file.mimetype === "application/pdf"
+  ) {
     cb(null, true);
+  } else {
+    cb(new Error("Only image and PDF files are allowed"), false);
   }
 };
 
 module.exports = multer({
   storage,
   fileFilter,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  limits: { fileSize: 20 * 1024 * 1024 },
 });

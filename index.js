@@ -42,7 +42,8 @@ const adminDashboardRoutes = require("./Routes/adminDashboardRoutes");
 const uploadRoutes = require("./Routes/uploadRoutes");
 const subscribeRoutes = require("./Routes/subscribeRoutes");
 const healthRoutes = require("./Routes/healthRoutes");
-import subscriberGroupRoutes from "./Routes/subscriberGroup.routes";
+const subscriberGroupRoutes = require("./Routes/subscriberGroupRoutes");
+const transactionRoutes = require("./Routes/transactionsRoutes");
 
 app.use("/api/auth", authRoutes);
 app.use("/api/blog", blogRoutes);
@@ -61,6 +62,10 @@ app.use("/api/admin", adminDashboardRoutes);
 app.use("/api/uploads", uploadRoutes);
 // Health endpoints (e.g. MailerLite token validation)
 app.use("/api/health", healthRoutes);
+
+//Paystack Routes
+
+app.use("/api/transactions", transactionRoutes);
 
 // 6. Health
 app.get("/", (req, res) => {
@@ -82,6 +87,6 @@ app.listen(PORT, () =>
   console.log(
     `Server running in ${
       process.env.NODE_ENV || "development"
-    } mode on port ${PORT}`
-  )
+    } mode on port ${PORT}`,
+  ),
 );

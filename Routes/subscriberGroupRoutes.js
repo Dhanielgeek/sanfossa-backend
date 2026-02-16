@@ -1,12 +1,10 @@
-
 // routes/subscriberGroup.routes.js
-import { Router } from "express";
-import {
+const express = require("express");
+const router = express.Router();
+const {
   createSubscriberGroup,
   updateSubscriberGroup,
-} from "../Controllers/subscriberGroup.controller.js";
-
-const router = Router();
+} = require("../Controllers/subscriberGroup.controller");
 
 /**
  * Create a new Subscriber Group
@@ -22,4 +20,4 @@ router.post("/subscriber-groups", createSubscriberGroup);
  */
 router.patch("/subscriber-groups/:id", updateSubscriberGroup);
 
-export default router;
+module.exports = router;
