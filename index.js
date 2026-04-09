@@ -44,6 +44,7 @@ const subscribeRoutes = require("./Routes/subscribeRoutes");
 const healthRoutes = require("./Routes/healthRoutes");
 const subscriberGroupRoutes = require("./Routes/subscriberGroupRoutes");
 const transactionRoutes = require("./Routes/transactionsRoutes");
+const waitlistRoutes = require("./Routes/waitlistRoutes");
 
 app.use("/api/auth", authRoutes);
 app.use("/api/blog", blogRoutes);
@@ -53,6 +54,7 @@ app.use("/api/contact", contactRoutes);
 app.use("/api", subscriberGroupRoutes);
 
 app.use("/api/newsletter", newsletterRoutes);
+app.use("/api/waitlist", waitlistRoutes);
 
 // Public subscriber endpoints (subscribe/unsubscribe)
 app.use("/api/subscribers", subscribeRoutes);
