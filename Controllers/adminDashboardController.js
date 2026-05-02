@@ -3,6 +3,8 @@ const Order = require("../Models/BooksOrdersModel");
 const Blog = require("../Models/BlogModel");
 const Subscriber = require("../Models/Subscriber");
 
+const BooksModel = require("../Models/BooksModel");
+
 // Helper: percentage change
 const calcChange = (current, previous) => {
   if (!previous || previous === 0) return "+0%";
@@ -32,13 +34,21 @@ exports.getAdminDashboard = async (req, res) => {
     const blogs = await Blog.find({ status: "published" });
     const totalBlogViews = blogs.reduce(
       (sum, blog) => sum + (blog.views || 0),
-      0
+      0,
     );
 
     const popularPosts = await Blog.find({ status: "published" })
       .sort({ views: -1 })
       .limit(4)
       .select("title views publishDate");
+
+    /* ---------- BOOKS ---------- */
+
+    const books = await BooksModel.find({ status: "published" });
+    const totalBookViews = books.reduce(
+      (sum, book) => sum + (book.views || 0),
+      0,
+    );
 
     /* ---------- NEWSLETTER ---------- */
     const subscribers = await Subscriber.countDocuments();
@@ -66,11 +76,15 @@ exports.getAdminDashboard = async (req, res) => {
           },
           revenue: {
             value: revenue,
-            change: "+15.3%",
+            change: "",
           },
           blogViews: {
             value: totalBlogViews,
-            change: "-3.1%",
+            change: "",
+          },
+          bookViews: {
+            value: totalBookViews,
+            change: "",
           },
         },
 
