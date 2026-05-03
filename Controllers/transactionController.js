@@ -26,7 +26,7 @@ exports.initializeTransaction = async (req, res) => {
 
     const paystackResponse = await initializePayment({
       email: order.userInfo.email,
-      amount: amount * 100, // kobo
+      amount: amount,
       reference,
       callback_url: `${process.env.FRONTEND_URL}/verify/`,
     });
