@@ -24,6 +24,9 @@ exports.initializeTransaction = async (req, res) => {
 
     const reference = `ORD-${Date.now()}-${require("crypto").randomBytes(4).toString("hex")}`;
 
+    order.paymentReference = reference;
+    await order.save();
+
     const paystackResponse = await initializePayment({
       email: order.userInfo.email,
       amount: amount,

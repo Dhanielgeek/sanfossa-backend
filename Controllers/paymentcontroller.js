@@ -1,5 +1,7 @@
 const Order = require("../Models/BooksOrdersModel");
 const { verifyPayment } = require("../services/paystackservice");
+const Book = require("../Models/BooksModel");
+const { sendEmail } = require("../services/emailservice");
 
 /**
  * -----------------------------------
@@ -51,6 +53,49 @@ exports.verifyPaystackPayment = async (req, res) => {
     order.paymentStatus = "Paid";
     order.paidAt = new Date();
     await order.save();
+
+    // Fetch purchased books
+    const books = await Book.find({
+      _id: { $in: order.items.map((item) => item.book) },
+    });
+
+    // Build attachments (PDFs)
+    const attachments = books
+      .filter((book) => book.pdfFile) // ensure PDF exists
+      .map((book) => ({
+        filename: `${book.title}.pdf`,
+        path: book.pdfFile, // Cloudinary URL
+      }));
+
+    // Receipt HTML (simple version)
+    const receiptHtml = `
+  <h2>Payment Receipt</h2>
+  <p>Hi ${order.userInfo.name},</p>
+  <p>Your payment was successful.</p>
+
+  <h3>Order Details:</h3>
+  <ul>
+    ${order.items
+      .map(
+        (item) => `
+      <li>${item.title} x ${item.quantity} - ₦${item.priceAtPurchase}</li>
+    `,
+      )
+      .join("")}
+  </ul>
+
+  <p><strong>Total:</strong> ₦${order.totalAmount}</p>
+
+  <p>Thank you for your purchase 🎉</p>
+`;
+
+    // Send email
+    await sendEmail({
+      to: order.userInfo.email,
+      subject: "Your Purchase Receipt & Books",
+      html: receiptHtml,
+      attachments,
+    });
 
     return res.status(200).json({
       success: true,
