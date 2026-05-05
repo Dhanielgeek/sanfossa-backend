@@ -45,6 +45,7 @@ const healthRoutes = require("./Routes/healthRoutes");
 const subscriberGroupRoutes = require("./Routes/subscriberGroupRoutes");
 const transactionRoutes = require("./Routes/transactionsRoutes");
 const waitlistRoutes = require("./Routes/waitlistRoutes");
+const { sendEmail } = require("./services/emailservice");
 
 app.use("/api/auth", authRoutes);
 app.use("/api/blog", blogRoutes);
@@ -92,3 +93,19 @@ app.listen(PORT, () =>
     } mode on port ${PORT}`,
   ),
 );
+
+//9. Email Service
+
+app.get("/test-email", async (req, res) => {
+  try {
+    const result = await sendEmail({
+      to: "dhanielknightz46@gmail.com", // use your own email
+      subject: "Test Email",
+      html: "<h1>It works 🎉</h1><p>Your Resend setup is correct.</p>",
+    });
+
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
