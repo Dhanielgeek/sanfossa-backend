@@ -2,7 +2,7 @@ const Order = require("../Models/BooksOrdersModel");
 const { verifyPayment } = require("../services/paystackservice");
 const Book = require("../Models/BooksModel");
 const { sendEmail } = require("../services/emailservice");
-
+const Libary = require("../Models/LibraryModel");
 /**
  * -----------------------------------
  * GET /api/v1/payments/verify/:reference
@@ -53,6 +53,16 @@ exports.verifyPaystackPayment = async (req, res) => {
     order.paymentStatus = "Paid";
     order.paidAt = new Date();
     await order.save();
+
+    // Add purchased books to user's library
+    const libraryEntries = order.items.map((item) => ({
+      email: order.userInfo.email,
+      book: item.book,
+      order: order._id,
+      paymentReference: reference,
+    }));
+
+    await Libary.insertMany(libraryEntries, { ordered: false });
 
     // Fetch purchased books
     const books = await Book.find({

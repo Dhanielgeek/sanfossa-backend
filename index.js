@@ -26,7 +26,19 @@ const connectDB = async () => {
 connectDB();
 
 // 4. Middleware
-app.use(cors());
+const allowedOrigins = [
+  "http://localhost:3000",
+  "http://localhost:5173",
+  "https://www.sankofaseek.com",
+];
+
+app.use(
+  cors({
+    origin: true,
+    credentials: true,
+  }),
+);
+
 app.use(express.json());
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
@@ -45,6 +57,7 @@ const healthRoutes = require("./Routes/healthRoutes");
 const subscriberGroupRoutes = require("./Routes/subscriberGroupRoutes");
 const transactionRoutes = require("./Routes/transactionsRoutes");
 const waitlistRoutes = require("./Routes/waitlistRoutes");
+const libraryRoutes = require("./Routes/libraryRoutes");
 const { sendEmail } = require("./services/emailservice");
 
 app.use("/api/auth", authRoutes);
@@ -52,6 +65,7 @@ app.use("/api/blog", blogRoutes);
 app.use("/api/book", bookRoutes);
 app.use("/api/order", orderRoutes);
 app.use("/api/contact", contactRoutes);
+app.use("/api/library", libraryRoutes);
 app.use("/api", subscriberGroupRoutes);
 
 app.use("/api/newsletter", newsletterRoutes);

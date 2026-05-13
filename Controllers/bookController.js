@@ -254,3 +254,53 @@ exports.downloadBook = async (req, res) => {
     res.status(500).json({ success: false, error: error.message });
   }
 };
+
+exports.downloadPurchasedBook = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    const book = await Book.findById(req.params.id);
+
+    if (!book) {
+      return res.status(404).json({
+        success: false,
+        message: "Book not found",
+      });
+    }
+
+    // Free book
+    if (book.price === 0) {
+      return res.status(200).json({
+        success: true,
+        data: {
+          pdfFile: book.pdfFile,
+        },
+      });
+    }
+
+    // Check ownership
+    const owned = await Libary.findOne({
+      email,
+      book: book._id,
+    });
+
+    if (!owned) {
+      return res.status(403).json({
+        success: false,
+        message: "You have not purchased this book",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        pdfFile: book.pdfFile,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+};
