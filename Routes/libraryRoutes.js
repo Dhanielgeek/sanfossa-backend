@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 
-const { getUserLibrary } = require("../controllers/LibraryController");
+const { getUserLibrary } = require("../Controllers/libraryController");
 
 router.get("/:email", getUserLibrary);
 
