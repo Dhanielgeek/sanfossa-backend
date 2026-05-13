@@ -19,6 +19,16 @@ const BookSchema = new mongoose.Schema(
       required: true,
     },
 
+    downloads: {
+      type: Number,
+      default: 0,
+    },
+
+    views: {
+      type: Number,
+      default: 0,
+    },
+
     content: {
       type: String,
     },
