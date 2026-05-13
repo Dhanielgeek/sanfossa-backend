@@ -112,6 +112,9 @@ exports.verifyPaystackPayment = async (req, res) => {
       message: "Payment verified successfully",
       data: order,
     });
+
+    console.log("ORDER FOUND:", order);
+    console.log("EMAIL:", order.userInfo.email);
   } catch (error) {
     console.error("PAYMENT VERIFICATION ERROR:", error.message);
 
