@@ -54,15 +54,44 @@ exports.verifyPaystackPayment = async (req, res) => {
     order.paidAt = new Date();
     await order.save();
 
-    // Add purchased books to user's library
-    const libraryEntries = order.items.map((item) => ({
+    // Fetch purchased books
+    const books = await Book.find({
+      _id: { $in: order.items.map((item) => item.book) },
+    });
+
+    // Create library entries with FULL BOOK SNAPSHOT
+    const libraryEntries = books.map((book) => ({
       email: order.userInfo.email,
-      book: item.book,
+
       order: order._id,
+
       paymentReference: reference,
+
+      bookSnapshot: {
+        bookId: book._id,
+
+        title: book.title,
+        subtitle: book.subtitle,
+        summary: book.summary,
+        content: book.content,
+
+        author: book.author,
+        narrator: book.narrator,
+        category: book.category,
+
+        coverImage: book.coverImage,
+        pdfFile: book.pdfFile,
+
+        readingTime: book.readingTime,
+        ageRating: book.ageRating,
+        price: book.price,
+
+        tags: book.tags,
+      },
     }));
 
-    await Libary.insertMany(libraryEntries, { ordered: false });
+    // Save into library
+    await Libary.insertMany(libraryEntries);
 
     // Fetch purchased books
     const books = await Book.find({

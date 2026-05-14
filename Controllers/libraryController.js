@@ -4,9 +4,9 @@ exports.getUserLibrary = async (req, res) => {
   try {
     const { email } = req.params;
 
-    const library = await Library.find({ email })
-      .populate("book")
-      .sort({ createdAt: -1 });
+    const library = await Library.find({ email }).sort({
+      createdAt: -1,
+    });
 
     res.status(200).json({
       success: true,
