@@ -9,12 +9,6 @@ const LibrarySchema = new mongoose.Schema(
       trim: true,
     },
 
-    book: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Book",
-      required: true,
-    },
-
     order: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Order",
@@ -26,11 +20,31 @@ const LibrarySchema = new mongoose.Schema(
       type: Date,
       default: Date.now,
     },
+
+    // FULL BOOK SNAPSHOT
+    bookSnapshot: {
+      bookId: mongoose.Schema.Types.ObjectId,
+
+      title: String,
+      subtitle: String,
+      summary: String,
+      content: String,
+
+      author: String,
+      narrator: String,
+      category: String,
+
+      coverImage: String,
+      pdfFile: String,
+
+      readingTime: Number,
+      ageRating: String,
+      price: Number,
+
+      tags: [String],
+    },
   },
   { timestamps: true },
 );
-
-// prevent duplicate ownership
-LibrarySchema.index({ email: 1, book: 1 }, { unique: true });
 
 module.exports = mongoose.model("Library", LibrarySchema);
