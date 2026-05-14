@@ -14,7 +14,9 @@ const LibrarySchema = new mongoose.Schema(
       ref: "Order",
     },
 
-    paymentReference: String,
+    paymentReference: {
+      type: String,
+    },
 
     purchasedAt: {
       type: Date,
@@ -32,6 +34,7 @@ const LibrarySchema = new mongoose.Schema(
 
       author: String,
       narrator: String,
+
       category: String,
 
       coverImage: String,
@@ -39,6 +42,7 @@ const LibrarySchema = new mongoose.Schema(
 
       readingTime: Number,
       ageRating: String,
+
       price: Number,
 
       tags: [String],

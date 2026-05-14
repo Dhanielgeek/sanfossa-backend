@@ -2,7 +2,8 @@ const Order = require("../Models/BooksOrdersModel");
 const { verifyPayment } = require("../services/paystackservice");
 const Book = require("../Models/BooksModel");
 const { sendEmail } = require("../services/emailservice");
-const Libary = require("../Models/LibraryModel");
+const Library = require("../Models/LibraryModel");
+
 /**
  * -----------------------------------
  * GET /api/v1/payments/verify/:reference
@@ -20,7 +21,9 @@ exports.verifyPaystackPayment = async (req, res) => {
   }
 
   try {
-    // ---- Verify payment with Paystack ----
+    // =========================================
+    // VERIFY PAYMENT FROM PAYSTACK
+    // =========================================
     const paystackResponse = await verifyPayment(reference);
 
     if (!paystackResponse || paystackResponse.data.status !== "success") {
@@ -30,8 +33,12 @@ exports.verifyPaystackPayment = async (req, res) => {
       });
     }
 
-    // ---- Find order by reference ----
-    const order = await Order.findOne({ paymentReference: reference });
+    // =========================================
+    // FIND ORDER
+    // =========================================
+    const order = await Order.findOne({
+      paymentReference: reference,
+    });
 
     if (!order) {
       return res.status(404).json({
@@ -40,8 +47,16 @@ exports.verifyPaystackPayment = async (req, res) => {
       });
     }
 
-    // ---- Prevent double processing ----
-    if (order.paymentStatus === "Paid") {
+    // =========================================
+    // CHECK IF LIBRARY ALREADY EXISTS
+    // =========================================
+    const existingLibrary = await Library.findOne({
+      email: order.userInfo.email,
+      paymentReference: reference,
+    });
+
+    // If already paid + library exists
+    if (order.paymentStatus === "Paid" && existingLibrary) {
       return res.status(200).json({
         success: true,
         message: "Payment already verified",
@@ -49,23 +64,34 @@ exports.verifyPaystackPayment = async (req, res) => {
       });
     }
 
-    // ---- Mark order as paid ----
+    // =========================================
+    // MARK ORDER AS PAID
+    // =========================================
     order.paymentStatus = "Paid";
     order.paidAt = new Date();
+
     await order.save();
 
-    // Fetch purchased books
+    // =========================================
+    // FETCH BOOKS
+    // =========================================
     const books = await Book.find({
-      _id: { $in: order.items.map((item) => item.book) },
+      _id: {
+        $in: order.items.map((item) => item.book),
+      },
     });
 
-    // Create library entries with FULL BOOK SNAPSHOT
+    // =========================================
+    // CREATE LIBRARY ENTRIES
+    // =========================================
     const libraryEntries = books.map((book) => ({
       email: order.userInfo.email,
 
       order: order._id,
 
       paymentReference: reference,
+
+      purchasedAt: new Date(),
 
       bookSnapshot: {
         bookId: book._id,
@@ -77,6 +103,7 @@ exports.verifyPaystackPayment = async (req, res) => {
 
         author: book.author,
         narrator: book.narrator,
+
         category: book.category,
 
         coverImage: book.coverImage,
@@ -84,51 +111,66 @@ exports.verifyPaystackPayment = async (req, res) => {
 
         readingTime: book.readingTime,
         ageRating: book.ageRating,
+
         price: book.price,
 
         tags: book.tags,
       },
     }));
 
-    // Save into library
-    await Libary.insertMany(libraryEntries);
+    console.log("🔥 LIBRARY ENTRIES:", libraryEntries);
 
-    // Fetch purchased books
-    const books = await Book.find({
-      _id: { $in: order.items.map((item) => item.book) },
-    });
+    // =========================================
+    // SAVE INTO LIBRARY
+    // =========================================
+    if (!existingLibrary) {
+      await Library.insertMany(libraryEntries);
+    }
 
-    // Build attachments (PDFs)
+    // =========================================
+    // EMAIL ATTACHMENTS
+    // =========================================
     const attachments = books
-      .filter((book) => book.pdfFile) // ensure PDF exists
+      .filter((book) => book.pdfFile)
       .map((book) => ({
         filename: `${book.title}.pdf`,
-        path: book.pdfFile, // Cloudinary URL
+        path: book.pdfFile,
       }));
 
-    // Receipt HTML (simple version)
+    // =========================================
+    // RECEIPT HTML
+    // =========================================
     const receiptHtml = `
-  <h2>Payment Receipt</h2>
-  <p>Hi ${order.userInfo.name},</p>
-  <p>Your payment was successful.</p>
+      <h2>Payment Receipt</h2>
 
-  <h3>Order Details:</h3>
-  <ul>
-    ${order.items
-      .map(
-        (item) => `
-      <li>${item.title} x ${item.quantity} - ₦${item.priceAtPurchase}</li>
-    `,
-      )
-      .join("")}
-  </ul>
+      <p>Hi ${order.userInfo.name},</p>
 
-  <p><strong>Total:</strong> ₦${order.totalAmount}</p>
+      <p>Your payment was successful.</p>
 
-  <p>Thank you for your purchase 🎉</p>
-`;
+      <h3>Order Details:</h3>
 
-    // Send email
+      <ul>
+        ${order.items
+          .map(
+            (item) => `
+              <li>
+                ${item.quantity} x ₦${item.priceAtPurchase}
+              </li>
+            `,
+          )
+          .join("")}
+      </ul>
+
+      <p>
+        <strong>Total:</strong> ₦${order.totalAmount}
+      </p>
+
+      <p>Thank you for your purchase 🎉</p>
+    `;
+
+    // =========================================
+    // SEND EMAIL
+    // =========================================
     await sendEmail({
       to: order.userInfo.email,
       subject: "Your Purchase Receipt & Books",
@@ -136,17 +178,23 @@ exports.verifyPaystackPayment = async (req, res) => {
       attachments,
     });
 
+    // =========================================
+    // SUCCESS RESPONSE
+    // =========================================
     return res.status(200).json({
       success: true,
       message: "Payment verified successfully",
-      data: order,
+      data: {
+        order,
+        libraryCreated: true,
+      },
     });
   } catch (error) {
-    console.error("PAYMENT VERIFICATION ERROR:", error.message);
+    console.error("PAYMENT VERIFICATION ERROR:", error);
 
     return res.status(500).json({
       success: false,
-      error: "Payment verification failed",
+      error: error.message || "Payment verification failed",
     });
   }
 };
