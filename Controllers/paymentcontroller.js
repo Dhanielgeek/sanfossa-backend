@@ -55,13 +55,18 @@ exports.verifyPaystackPayment = async (req, res) => {
       paymentReference: reference,
     });
 
-    // If already paid + library exists
+    // If already verified AND library already exists
     if (order.paymentStatus === "Paid" && existingLibrary) {
       return res.status(200).json({
         success: true,
-        message: "Payment already verified",
+        message: "Payment already verified and library exists",
         data: order,
       });
+    }
+
+    // If payment already verified but library missing
+    if (order.paymentStatus === "Paid" && !existingLibrary) {
+      console.log("🔥 PAYMENT EXISTS BUT LIBRARY MISSING");
     }
 
     // =========================================
@@ -123,8 +128,56 @@ exports.verifyPaystackPayment = async (req, res) => {
     // =========================================
     // SAVE INTO LIBRARY
     // =========================================
+    // =========================================
+    // CREATE LIBRARY IF MISSING
+    // =========================================
+
     if (!existingLibrary) {
+      const books = await Book.find({
+        _id: {
+          $in: order.items.map((item) => item.book),
+        },
+      });
+
+      const libraryEntries = books.map((book) => ({
+        email: order.userInfo.email.toLowerCase(),
+
+        order: order._id,
+
+        paymentReference: reference,
+
+        purchasedAt: new Date(),
+
+        bookSnapshot: {
+          bookId: book._id,
+
+          title: book.title,
+          subtitle: book.subtitle,
+          summary: book.summary,
+          content: book.content,
+
+          author: book.author,
+          narrator: book.narrator,
+
+          category: book.category,
+
+          coverImage: book.coverImage,
+          pdfFile: book.pdfFile,
+
+          readingTime: book.readingTime,
+          ageRating: book.ageRating,
+
+          price: book.price,
+
+          tags: book.tags,
+        },
+      }));
+
+      console.log("🔥 SAVING LIBRARY:", libraryEntries);
+
       await Library.insertMany(libraryEntries);
+
+      console.log("✅ LIBRARY SAVED");
     }
 
     // =========================================
