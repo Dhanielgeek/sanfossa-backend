@@ -1,4 +1,5 @@
 const Book = require("../Models/BooksModel");
+const Library = require("../Models/LibraryModel");
 const uploadToCloudinary = require("../utill/uploadToCloudinary");
 
 /**
@@ -279,9 +280,10 @@ exports.downloadPurchasedBook = async (req, res) => {
     }
 
     // Check ownership
-    const owned = await Libary.findOne({
-      email,
-      book: book._id,
+    const owned = await Library.findOne({
+      email: String(email || "").toLowerCase().trim(),
+      schemaVersion: 2,
+      "books.bookId": book._id,
     });
 
     if (!owned) {

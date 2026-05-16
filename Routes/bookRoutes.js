@@ -9,6 +9,7 @@ const {
   getPublicBooks,
   getSingleBook,
   downloadBook,
+  downloadPurchasedBook,
 } = require("../Controllers/bookController");
 
 const upload = require("../middleware/upload");
@@ -21,6 +22,12 @@ const { adminProtect } = require("../middleware/authAdmin");
 
 // Get all published stories (public)
 router.get("/", getPublicBooks);
+
+// Get all stories (draft + published)
+router.get("/admin/all", adminProtect, getAllBooksAdmin);
+
+// Download purchased story
+router.post("/:id/download-purchased", protect, downloadPurchasedBook);
 
 // Get single published story
 router.get("/:id", getSingleBook);
@@ -42,9 +49,6 @@ router.post("/", adminProtect, bookUploads, createBook);
 
 // Update story (optional image + PDF upload)
 router.put("/:id", adminProtect, bookUploads, updateBook);
-
-// Get all stories (draft + published)
-router.get("/admin/all", adminProtect, getAllBooksAdmin);
 
 // Delete story
 router.delete("/:id", adminProtect, deleteBook);

@@ -5,16 +5,15 @@ const crypto = require("crypto");
 const Transaction = require("../Models/TransactionModel");
 const Order = require("../Models/BooksOrdersModel");
 const Book = require("../Models/BooksModel");
+const { ensureOrderBooksInLibrary } = require("../services/libraryService");
 const {
   initializePayment,
   verifyPayment,
 } = require("../services/paystackservice");
 
 /**
- * -----------------------------------
- * POST /api/v1/transactions/initialize
- * Initialize Paystack Payment
- * -----------------------------------
+ * POST /api/transactions/initialize
+ * Initialize Paystack payment for an existing order.
  */
 router.post("/initialize", async (req, res) => {
   try {
@@ -22,13 +21,15 @@ router.post("/initialize", async (req, res) => {
 
     const order = await Order.findById(orderId);
 
-    if (!order)
+    if (!order) {
       return res.status(404).json({ success: false, error: "Order not found" });
+    }
 
-    if (order.paymentStatus === "Paid")
+    if (order.paymentStatus === "Paid") {
       return res
         .status(400)
         .json({ success: false, error: "Order already paid" });
+    }
 
     const amount = order.items.reduce(
       (sum, item) => sum + item.priceAtPurchase * item.quantity,
@@ -43,6 +44,10 @@ router.post("/initialize", async (req, res) => {
       reference,
       callback_url: `${process.env.FRONTEND_URL}/verify/`,
     });
+
+    order.paymentReference = reference;
+    order.totalAmount = amount;
+    await order.save();
 
     await Transaction.create({
       order: order._id,
@@ -68,10 +73,8 @@ router.post("/initialize", async (req, res) => {
 });
 
 /**
- * -----------------------------------
- * GET /api/v1/transactions/verify/:reference
- * Verify Paystack Payment
- * -----------------------------------
+ * GET /api/transactions/verify/:reference
+ * Verify Paystack payment and persist purchased books to library.
  */
 router.get("/verify/:reference", async (req, res) => {
   try {
@@ -81,54 +84,143 @@ router.get("/verify/:reference", async (req, res) => {
       "order",
     );
 
-    if (!transaction)
+    if (!transaction) {
       return res.status(404).json({
         success: false,
         error: "Transaction not found",
       });
+    }
 
-    // Prevent double verification
     if (transaction.paymentStatus === "Paid") {
+      await Order.updateOne(
+        { _id: transaction.order._id, paymentStatus: { $ne: "Paid" } },
+        {
+          $set: {
+            paymentStatus: "Paid",
+            status: "Completed",
+            paymentReference: reference,
+            paidAt: transaction.paidAt || new Date(),
+          },
+        },
+      );
+      transaction.order.paymentStatus = "Paid";
+      transaction.order.status = "Completed";
+      transaction.order.paymentReference = reference;
+      transaction.order.paidAt = transaction.paidAt || new Date();
+
+      const library = await ensureOrderBooksInLibrary({
+        order: transaction.order,
+        transaction,
+      });
+
       return res.status(200).json({
         success: true,
         message: "Transaction already verified",
+        data: { library },
       });
     }
 
     const paystackResponse = await verifyPayment(reference);
+    const paymentData = paystackResponse && paystackResponse.data;
+    const expectedAmount = Math.round(transaction.amount * 100);
 
-    if (paystackResponse.data.status !== "success") {
+    if (
+      !paymentData ||
+      paymentData.status !== "success" ||
+      paymentData.reference !== reference ||
+      paymentData.amount !== expectedAmount ||
+      paymentData.currency !== "NGN"
+    ) {
       transaction.paymentStatus = "Failed";
+      transaction.gatewayResponse = paymentData || paystackResponse;
       await transaction.save();
 
       return res.status(400).json({
         success: false,
-        error: "Payment not successful",
+        error: "Payment verification mismatch or payment not successful",
       });
     }
 
-    // ✅ Mark transaction as paid
-    transaction.paymentStatus = "Paid";
-    transaction.paidAt = new Date();
-    transaction.gatewayResponse = paystackResponse.data;
-    await transaction.save();
+    const paidAt = new Date();
+    const paidTransaction = await Transaction.findOneAndUpdate(
+      { _id: transaction._id, paymentStatus: { $ne: "Paid" } },
+      {
+        $set: {
+          paymentStatus: "Paid",
+          paidAt,
+          gatewayResponse: paymentData,
+        },
+      },
+      { new: true },
+    ).populate("order");
 
-    // ✅ Update order
-    const order = transaction.order;
+    if (!paidTransaction) {
+      const currentTransaction = await Transaction.findById(
+        transaction._id,
+      ).populate("order");
+      await Order.updateOne(
+        { _id: currentTransaction.order._id, paymentStatus: { $ne: "Paid" } },
+        {
+          $set: {
+            paymentStatus: "Paid",
+            status: "Completed",
+            paymentReference: reference,
+            paidAt: currentTransaction.paidAt || new Date(),
+          },
+        },
+      );
+      currentTransaction.order.paymentStatus = "Paid";
+      currentTransaction.order.status = "Completed";
+      currentTransaction.order.paymentReference = reference;
+      currentTransaction.order.paidAt = currentTransaction.paidAt || new Date();
+
+      const library = await ensureOrderBooksInLibrary({
+        order: currentTransaction.order,
+        transaction: currentTransaction,
+      });
+
+      return res.status(200).json({
+        success: true,
+        message: "Transaction already verified",
+        data: { library },
+      });
+    }
+
+    const order = paidTransaction.order;
+    const orderUpdate = await Order.updateOne(
+      { _id: order._id, paymentStatus: { $ne: "Paid" } },
+      {
+        $set: {
+          paymentStatus: "Paid",
+          status: "Completed",
+          paymentReference: reference,
+          paidAt: paidTransaction.paidAt,
+        },
+      },
+    );
+
     order.paymentStatus = "Paid";
-    order.status = "Completed"; // 🔥 Update fulfillment status
-    await order.save();
+    order.status = "Completed";
+    order.paymentReference = reference;
+    order.paidAt = paidTransaction.paidAt;
 
-    // ✅ Deduct stock AFTER payment success
-    for (const item of order.items) {
-      await Book.findByIdAndUpdate(item.book, {
-        $inc: { stockQuantity: -item.quantity },
-      });
+    if (orderUpdate.modifiedCount) {
+      for (const item of order.items) {
+        await Book.findByIdAndUpdate(item.book, {
+          $inc: { stockQuantity: -item.quantity },
+        });
+      }
     }
+
+    const library = await ensureOrderBooksInLibrary({
+      order,
+      transaction: paidTransaction,
+    });
 
     return res.status(200).json({
       success: true,
       message: "Payment verified and order updated",
+      data: { library },
     });
   } catch (error) {
     console.error("VERIFY ERROR:", error);

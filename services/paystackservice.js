@@ -8,12 +8,13 @@ const paystack = axios.create({
   },
 });
 
-exports.initializePayment = async ({ email, amount, reference }) => {
+exports.initializePayment = async ({ email, amount, reference, callback_url }) => {
   const response = await paystack.post("/transaction/initialize", {
     email,
     amount: amount,
     reference,
     currency: "NGN",
+    ...(callback_url ? { callback_url } : {}),
   });
 
   return response.data;
