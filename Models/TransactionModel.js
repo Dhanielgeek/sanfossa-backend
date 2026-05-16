@@ -39,4 +39,7 @@ const TransactionSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
+TransactionSchema.index({ order: 1 });
+TransactionSchema.index({ paymentStatus: 1 });
+
 module.exports = mongoose.model("Transaction", TransactionSchema);

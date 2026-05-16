@@ -6,8 +6,8 @@ const {
   getAllLibrary,
 } = require("../Controllers/libraryController");
 
-router.get("/:email", getUserLibrary);
-
 router.get("/all", getAllLibrary);
+
+router.get("/:email", getUserLibrary);
 
 module.exports = router;

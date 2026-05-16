@@ -9,16 +9,29 @@ exports.getUserLibrary = async (req, res) => {
   try {
     const { email } = req.params;
 
-    const library = await Library.find({
-      email: email.toLowerCase(),
-    }).sort({
-      createdAt: -1,
+    const normalizedEmail = email.toLowerCase().trim();
+    const currentLibrary = await Library.findOne({
+      email: normalizedEmail,
+      schemaVersion: 2,
     });
+
+    if (currentLibrary) {
+      return res.status(200).json({
+        success: true,
+        count: currentLibrary.books.length,
+        data: currentLibrary,
+      });
+    }
+
+    const legacyLibrary = await Library.find({
+      email: normalizedEmail,
+      schemaVersion: { $ne: 2 },
+    }).sort({ createdAt: -1 });
 
     return res.status(200).json({
       success: true,
-      count: library.length,
-      data: library,
+      count: legacyLibrary.length,
+      data: legacyLibrary,
     });
   } catch (error) {
     return res.status(500).json({
@@ -35,7 +48,7 @@ exports.getUserLibrary = async (req, res) => {
  */
 exports.getAllLibrary = async (req, res) => {
   try {
-    const library = await Library.find().sort({
+    const library = await Library.find({ schemaVersion: 2 }).sort({
       createdAt: -1,
     });
 

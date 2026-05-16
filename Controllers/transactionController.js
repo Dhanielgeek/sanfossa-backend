@@ -25,11 +25,12 @@ exports.initializeTransaction = async (req, res) => {
     const reference = `ORD-${Date.now()}-${require("crypto").randomBytes(4).toString("hex")}`;
 
     order.paymentReference = reference;
+    order.totalAmount = amount;
     await order.save();
 
     const paystackResponse = await initializePayment({
       email: order.userInfo.email,
-      amount: amount,
+      amount: amount * 100,
       reference,
       callback_url: `${process.env.FRONTEND_URL}/verify/`,
     });
