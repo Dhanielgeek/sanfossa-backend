@@ -10,6 +10,7 @@ const {
   getSingleBook,
   downloadBook,
   downloadPurchasedBook,
+  incrementBookView,
 } = require("../Controllers/bookController");
 
 const upload = require("../middleware/upload");
@@ -52,5 +53,8 @@ router.put("/:id", adminProtect, bookUploads, updateBook);
 
 // Delete story
 router.delete("/:id", adminProtect, deleteBook);
+
+//View books
+router.post("/books/:id/view", incrementBookView);
 
 module.exports = router;

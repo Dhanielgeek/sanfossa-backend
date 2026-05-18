@@ -281,7 +281,9 @@ exports.downloadPurchasedBook = async (req, res) => {
 
     // Check ownership
     const owned = await Library.findOne({
-      email: String(email || "").toLowerCase().trim(),
+      email: String(email || "")
+        .toLowerCase()
+        .trim(),
       schemaVersion: 2,
       "books.bookId": book._id,
     });
@@ -303,6 +305,35 @@ exports.downloadPurchasedBook = async (req, res) => {
     res.status(500).json({
       success: false,
       error: error.message,
+    });
+  }
+};
+
+exports.incrementBookView = async (req, res) => {
+  try {
+    const bookId = req.params.id;
+
+    const book = await Book.findByIdAndUpdate(
+      bookId,
+      { $inc: { views: 1 } },
+      { new: true },
+    );
+
+    if (!book) {
+      return res.status(404).json({
+        success: false,
+        message: "Book not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      views: book.views,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message,
     });
   }
 };
