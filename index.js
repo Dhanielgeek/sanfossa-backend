@@ -80,6 +80,7 @@ app.use("/api/uploads", uploadRoutes);
 // Health endpoints (e.g. MailerLite token validation)
 app.use("/api/health", healthRoutes);
 
+console.log("🔥 Library route import:", libraryRoutes);
 //Paystack Routes
 
 app.use("/api/transactions", transactionRoutes);
