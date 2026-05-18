@@ -337,3 +337,35 @@ exports.incrementBookView = async (req, res) => {
     });
   }
 };
+
+exports.trackBookView = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const book = await Book.findById(id);
+
+    if (!book) {
+      return res.status(404).json({
+        success: false,
+        message: "Book not found",
+      });
+    }
+
+    book.views = (book.views || 0) + 1;
+    await book.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "View tracked",
+      data: {
+        views: book.views,
+      },
+    });
+  } catch (error) {
+    console.error("Track view error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to track view",
+    });
+  }
+};
