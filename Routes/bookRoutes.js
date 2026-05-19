@@ -15,6 +15,7 @@ const {
 } = require("../Controllers/bookController");
 
 const upload = require("../middleware/upload");
+const { protect } = require("../middleware/auth");
 const { adminProtect } = require("../middleware/authAdmin");
 
 /* =======================
@@ -55,6 +56,7 @@ router.put("/:id", adminProtect, bookUploads, updateBook);
 router.delete("/:id", adminProtect, deleteBook);
 
 //View books
+router.post("/:id/track-view", trackBookView);
 router.post("/books/:id/view", trackBookView);
 router.post("/books/:id/track-view", trackBookView);
 
