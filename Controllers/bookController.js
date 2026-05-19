@@ -201,10 +201,14 @@ exports.getPublicBooks = async (req, res) => {
  */
 exports.getSingleBook = async (req, res) => {
   try {
-    const book = await Book.findOne({
-      _id: req.params.id,
-      status: "published",
-    });
+    const book = await Book.findOneAndUpdate(
+      {
+        _id: req.params.id,
+        status: "published",
+      },
+      { $inc: { views: 1 } },
+      { new: true },
+    );
 
     if (!book) {
       return res.status(404).json({
