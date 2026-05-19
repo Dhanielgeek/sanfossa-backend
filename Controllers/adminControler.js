@@ -1,6 +1,7 @@
 const Admin = require("../Models/Adminmodel");
 const jwt = require("jsonwebtoken");
 const User = require("../Models/userModel");
+const Order = require("../Models/BooksOrdersModel");
 
 const generateToken = (id) =>
   jwt.sign({ id, type: "admin" }, process.env.JWT_SECRET, {
@@ -95,6 +96,19 @@ exports.getAllUsers = async (req, res) => {
       .select("-password") // extra safety
       .sort({ createdAt: -1 });
 
+    const orderCounts = await Order.aggregate([
+      {
+        $group: {
+          _id: { $toLower: "$userInfo.email" },
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+    const ordersByEmail = new Map(
+      orderCounts.map((item) => [item._id, item.count]),
+    );
+
     // Format users for frontend table
     const formattedUsers = users.map((user) => ({
       id: user._id,
@@ -112,7 +126,7 @@ exports.getAllUsers = async (req, res) => {
         day: "numeric",
         year: "numeric",
       }),
-      orders: 0, // placeholder (until Orders model exists)
+      orders: ordersByEmail.get(String(user.email || "").toLowerCase()) || 0,
     }));
 
     // Stats for top cards

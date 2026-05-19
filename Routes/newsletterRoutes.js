@@ -5,6 +5,7 @@ const { adminProtect } = require("../middleware/authAdmin");
 const {
   createNewsletter,
   sendNewsletter,
+  scheduleNewsletter,
 } = require("../Controllers/newsletterController");
 
 // Optional: lightweight body validation middleware for send controls
@@ -72,5 +73,6 @@ function validateSendControls(req, res, next) {
 
 router.post("/", adminProtect, createNewsletter);
 router.post("/:id/send", adminProtect, validateSendControls, sendNewsletter);
+router.post("/:id/schedule", adminProtect, scheduleNewsletter);
 
 module.exports = router;

@@ -53,6 +53,132 @@ async function sendWithRetry(opts, { retries = 2, baseDelayMs = 500 }) {
   throw lastErr || new Error("Failed to send email after retries");
 }
 
+async function processNewsletterSend(newsletter, controls = {}) {
+  const {
+    onlyVerified = true,
+    batchSize = 100,
+    batchDelayMs = 1000,
+    maxConcurrency = 10,
+    retries = 2,
+    dryRun = false,
+    customFilter = {},
+  } = controls;
+
+  const filter = { isActive: true, ...customFilter };
+  if (onlyVerified) filter.isVerified = true;
+
+  const subscribers = await Subscriber.find(filter).select("email").lean();
+
+  const normalized = Array.from(
+    new Set(
+      subscribers
+        .map((s) =>
+          String(s.email || "")
+            .trim()
+            .toLowerCase()
+        )
+        .filter((e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)),
+    ),
+  );
+
+  if (normalized.length === 0) {
+    return {
+      ok: false,
+      statusCode: 400,
+      payload: { success: false, message: "No valid recipients found." },
+    };
+  }
+
+  console.info(
+    `[NEWSLETTER][SEND][START] id=${newsletter._id}, subject="${newsletter.subject}", recipients=${normalized.length}, dryRun=${dryRun}`,
+  );
+
+  let sent = 0;
+  let failed = 0;
+  const perRecipientResults = [];
+
+  for (let i = 0; i < normalized.length; i += batchSize) {
+    const batch = normalized.slice(i, i + batchSize);
+
+    const batchResults = await runWithConcurrency(
+      batch,
+      async (email) => {
+        if (dryRun) {
+          return { email, success: true, dryRun: true };
+        }
+
+        try {
+          const info = await sendWithRetry(
+            {
+              to: email,
+              subject: newsletter.subject,
+              html: newsletter.content,
+            },
+            { retries },
+          );
+
+          return { email, success: true, messageId: info?.messageId };
+        } catch (err) {
+          return {
+            email,
+            success: false,
+            error: err?.message || "Unknown error",
+          };
+        }
+      },
+      maxConcurrency,
+    );
+
+    batchResults.forEach((result) => {
+      perRecipientResults.push(result);
+      if (result.success) sent++;
+      else failed++;
+    });
+
+    if (i + batchSize < normalized.length && batchDelayMs > 0) {
+      await sleep(batchDelayMs);
+    }
+  }
+
+  newsletter.status =
+    failed === 0 && !dryRun ? "sent" : dryRun ? "dry-sent" : "partial";
+  newsletter.sentAt = !dryRun ? new Date() : undefined;
+  newsletter.scheduledAt = undefined;
+  newsletter.metrics = {
+    totalRecipients: normalized.length,
+    sent,
+    failed,
+    dryRun,
+    lastAttemptAt: new Date(),
+  };
+  await newsletter.save();
+
+  console.info(
+    `[NEWSLETTER][SEND][END] id=${newsletter._id}, total=${normalized.length}, sent=${sent}, failed=${failed}, dryRun=${dryRun}`,
+  );
+
+  return {
+    ok: true,
+    statusCode: 200,
+    payload: {
+      success: true,
+      message: dryRun
+        ? `Dry run complete: ${sent} would be sent, ${failed} would fail.`
+        : `Newsletter processed: ${sent} sent, ${failed} failed.`,
+      summary: {
+        newsletterId: String(newsletter._id),
+        subject: newsletter.subject,
+        total: normalized.length,
+        sent,
+        failed,
+        status: newsletter.status,
+        dryRun,
+      },
+      results: perRecipientResults,
+    },
+  };
+}
+
 // @desc    Create a newsletter (subject + HTML content)
 // @route   POST /api/v1/newsletter
 // @access  Private (Admin)
@@ -92,17 +218,6 @@ exports.createNewsletter = async (req, res) => {
 exports.sendNewsletter = async (req, res) => {
   const { id } = req.params;
 
-  // Optional controls via body
-  const {
-    onlyVerified = true, // filter subscribers by isVerified if present in schema
-    batchSize = 100, // number processed between batch delays
-    batchDelayMs = 1000, // delay between batches (helps with rate-limits)
-    maxConcurrency = 10, // simultaneous SMTP calls
-    retries = 2, // per-recipient retry count
-    dryRun = false, // if true, do not actually send, just simulate
-    customFilter = {}, // any additional Mongo filters e.g., { segment: 'premium' }
-  } = req.body || {};
-
   try {
     const newsletter = await Newsletter.findById(id);
     if (!newsletter) {
@@ -117,119 +232,8 @@ exports.sendNewsletter = async (req, res) => {
       });
     }
 
-    // Build subscriber filter
-    const filter = { isActive: true, ...customFilter };
-    if (onlyVerified) filter.isVerified = true;
-
-    // Get recipients; lean() for performance, select minimal fields
-    const subscribers = await Subscriber.find(filter).select("email").lean();
-
-    // Normalize emails, remove duplicates and invalids
-    const normalized = Array.from(
-      new Set(
-        subscribers
-          .map((s) =>
-            String(s.email || "")
-              .trim()
-              .toLowerCase()
-          )
-          .filter((e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e))
-      )
-    );
-
-    if (normalized.length === 0) {
-      return res
-        .status(400)
-        .json({ success: false, message: "No valid recipients found." });
-    }
-
-    console.info(
-      `[NEWSLETTER][SEND][START] id=${newsletter._id}, subject="${newsletter.subject}", recipients=${normalized.length}, dryRun=${dryRun}`
-    );
-
-    let sent = 0,
-      failed = 0;
-    const perRecipientResults = [];
-
-    // Process in batches to avoid throttling
-    for (let i = 0; i < normalized.length; i += batchSize) {
-      const batch = normalized.slice(i, i + batchSize);
-
-      // Concurrency control inside the batch
-      const batchResults = await runWithConcurrency(
-        batch,
-        async (email) => {
-          if (dryRun) {
-            return { email, success: true, dryRun: true };
-          }
-          try {
-            const info = await sendWithRetry(
-              {
-                to: email,
-                subject: newsletter.subject,
-                html: newsletter.content,
-                // text could be derived: strip HTML, optional field in Newsletter
-              },
-              { retries }
-            );
-            return { email, success: true, messageId: info?.messageId };
-          } catch (err) {
-            return {
-              email,
-              success: false,
-              error: err?.message || "Unknown error",
-            };
-          }
-        },
-        maxConcurrency
-      );
-
-      // Aggregate
-      batchResults.forEach((r) => {
-        perRecipientResults.push(r);
-        if (r.success) sent++;
-        else failed++;
-      });
-
-      // Small delay between batches to respect provider limits
-      if (i + batchSize < normalized.length && batchDelayMs > 0) {
-        await sleep(batchDelayMs);
-      }
-    }
-
-    // Update newsletter document with send summary but keep idempotency
-    newsletter.status =
-      failed === 0 && !dryRun ? "sent" : dryRun ? "dry-sent" : "partial";
-    newsletter.sentAt = !dryRun ? new Date() : undefined;
-    newsletter.metrics = {
-      totalRecipients: normalized.length,
-      sent,
-      failed,
-      dryRun,
-      lastAttemptAt: new Date(),
-    };
-    await newsletter.save();
-
-    console.info(
-      `[NEWSLETTER][SEND][END] id=${newsletter._id}, total=${normalized.length}, sent=${sent}, failed=${failed}, dryRun=${dryRun}`
-    );
-
-    return res.status(200).json({
-      success: true,
-      message: dryRun
-        ? `Dry run complete: ${sent} would be sent, ${failed} would fail.`
-        : `Newsletter processed: ${sent} sent, ${failed} failed.`,
-      summary: {
-        newsletterId: String(newsletter._id),
-        subject: newsletter.subject,
-        total: normalized.length,
-        sent,
-        failed,
-        status: newsletter.status,
-        dryRun,
-      },
-      results: perRecipientResults, // consider paginating or omitting for very large lists
-    });
+    const result = await processNewsletterSend(newsletter, req.body || {});
+    return res.status(result.statusCode).json(result.payload);
   } catch (err) {
     console.error("[NEWSLETTER][SEND][ERROR]", err);
     return res.status(500).json({
@@ -268,6 +272,10 @@ exports.scheduleNewsletter = async (req, res) => {
 
     newsletter.scheduledAt = date;
     newsletter.status = "scheduled";
+    newsletter.metrics = {
+      ...newsletter.metrics,
+      lastAttemptAt: new Date(),
+    };
     await newsletter.save();
 
     return res.json({
@@ -286,3 +294,5 @@ exports.scheduleNewsletter = async (req, res) => {
     });
   }
 };
+
+exports.processNewsletterSend = processNewsletterSend;
