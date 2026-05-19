@@ -20,7 +20,7 @@ exports.getAdminDashboard = async (req, res) => {
     /* ---------- ORDERS ---------- */
     const totalOrders = await Order.countDocuments();
     const revenueAgg = await Order.aggregate([
-      { $match: { status: "completed" } },
+      { $match: { status: "Completed" } },
       { $group: { _id: null, total: { $sum: "$totalAmount" } } },
     ]);
     const revenue = revenueAgg[0]?.total || 0;
@@ -76,15 +76,15 @@ exports.getAdminDashboard = async (req, res) => {
           },
           revenue: {
             value: revenue,
-            change: "",
+            change: "+0%",
           },
           blogViews: {
             value: totalBlogViews,
-            change: "",
+            change: "+0%",
           },
           bookViews: {
             value: totalBookViews,
-            change: "",
+            change: "+0%",
           },
         },
 

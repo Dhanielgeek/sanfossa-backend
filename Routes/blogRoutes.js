@@ -8,6 +8,7 @@ const {
   getPublicBlogs,
   getRssFeed,
   getSingleBlog,
+  trackBlogView,
   getAllBlogsAdmin,
   updateBlog,
   deleteBlog,
@@ -16,6 +17,7 @@ const {
 /* ---------- PUBLIC ---------- */
 router.get("/", getPublicBlogs);
 router.get("/rss", getRssFeed);
+router.post("/:id/track-view", trackBlogView);
 router.get("/:id", getSingleBlog);
 
 /* ---------- ADMIN ---------- */

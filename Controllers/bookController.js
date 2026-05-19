@@ -259,7 +259,6 @@ exports.downloadBook = async (req, res) => {
 exports.downloadPurchasedBook = async (req, res) => {
   try {
     const { email } = req.body;
-
     const book = await Book.findById(req.params.id);
 
     if (!book) {
@@ -268,6 +267,10 @@ exports.downloadPurchasedBook = async (req, res) => {
         message: "Book not found",
       });
     }
+
+    const normalizedEmail = String(email || "")
+      .toLowerCase()
+      .trim();
 
     // Free book
     if (book.price === 0) {
@@ -279,11 +282,16 @@ exports.downloadPurchasedBook = async (req, res) => {
       });
     }
 
+    if (!normalizedEmail) {
+      return res.status(400).json({
+        success: false,
+        message: "Purchase email is required",
+      });
+    }
+
     // Check ownership
     const owned = await Library.findOne({
-      email: String(email || "")
-        .toLowerCase()
-        .trim(),
+      email: normalizedEmail,
       schemaVersion: 2,
       "books.bookId": book._id,
     });
@@ -295,10 +303,14 @@ exports.downloadPurchasedBook = async (req, res) => {
       });
     }
 
+    const purchasedBook = owned.books.find(
+      (entry) => String(entry.bookId) === String(book._id),
+    );
+
     res.status(200).json({
       success: true,
       data: {
-        pdfFile: book.pdfFile,
+        pdfFile: purchasedBook?.bookSnapshot?.pdfFile || book.pdfFile,
       },
     });
   } catch (error) {
@@ -342,7 +354,11 @@ exports.trackBookView = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const book = await Book.findById(id);
+    const book = await Book.findOneAndUpdate(
+      { _id: id, status: "published" },
+      { $inc: { views: 1 } },
+      { new: true },
+    );
 
     if (!book) {
       return res.status(404).json({
@@ -350,9 +366,6 @@ exports.trackBookView = async (req, res) => {
         message: "Book not found",
       });
     }
-
-    book.views = (book.views || 0) + 1;
-    await book.save();
 
     return res.status(200).json({
       success: true,

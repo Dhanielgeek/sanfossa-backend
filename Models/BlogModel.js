@@ -31,6 +31,11 @@ const BlogSchema = new mongoose.Schema(
       maxlength: 300,
     },
 
+    views: {
+      type: Number,
+      default: 0,
+    },
+
     content: {
       type: String,
       required: true,
