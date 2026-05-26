@@ -3,7 +3,7 @@ const streamifier = require("streamifier");
 
 const uploadToCloudinary = (
   fileBuffer,
-  { folder = "blogs", resourceType = "auto", format } = {},
+  { folder = "blogs", resourceType = "auto", format, publicId } = {},
 ) => {
   return new Promise((resolve, reject) => {
     const stream = cloudinary.uploader.upload_stream(
