@@ -101,7 +101,12 @@ exports.updateBook = async (req, res) => {
         folder: "stories/pdfs",
         resourceType: "raw",
       });
-      updates.pdfFile = pdfUpload.secure_url;
+
+      // FORCE INLINE PDF VIEWING
+      pdfUrl = pdfUpload.secure_url.replace(
+        "/upload/",
+        "/upload/fl_attachment:false/",
+      );
     }
 
     if (updates.price) updates.price = Number(updates.price);
