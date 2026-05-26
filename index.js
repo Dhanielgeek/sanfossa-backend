@@ -6,6 +6,7 @@ const cors = require("cors");
 const path = require("path");
 
 require("./cron/publishScheduledBlogs");
+const { processDueScheduledNewsletters } = require("./cron/sendScheduledNewsletters");
 
 // 1. Load env
 dotenv.config();
@@ -24,6 +25,11 @@ const connectDB = async () => {
   }
 };
 connectDB();
+setInterval(() => {
+  processDueScheduledNewsletters().catch((error) =>
+    console.error("[NEWSLETTER][SCHEDULED][LOOP][ERROR]", error),
+  );
+}, 60 * 1000);
 
 // 4. Middleware
 const allowedOrigins = [

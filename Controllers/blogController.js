@@ -102,13 +102,53 @@ exports.getRssFeed = async (req, res) => {
  * @desc Get single blog (Public)
  */
 exports.getSingleBlog = async (req, res) => {
-  const blog = await Blog.findById(req.params.id);
+  try {
+    const blog = await Blog.findOneAndUpdate(
+      { _id: req.params.id, status: "published" },
+      { $inc: { views: 1 } },
+      { new: true },
+    );
 
-  if (!blog || blog.status !== "published") {
-    return res.status(404).json({ success: false, message: "Blog not found" });
+    if (!blog) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Blog not found" });
+    }
+
+    res.json({ success: true, data: blog });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
   }
+};
 
-  res.json({ success: true, data: blog });
+exports.trackBlogView = async (req, res) => {
+  try {
+    const blog = await Blog.findOneAndUpdate(
+      { _id: req.params.id, status: "published" },
+      { $inc: { views: 1 } },
+      { new: true },
+    );
+
+    if (!blog) {
+      return res.status(404).json({
+        success: false,
+        message: "Blog not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "View tracked",
+      data: {
+        views: blog.views,
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Failed to track view",
+    });
+  }
 };
 
 /**

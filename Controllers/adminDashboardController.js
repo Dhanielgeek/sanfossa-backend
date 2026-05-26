@@ -12,6 +12,14 @@ const calcChange = (current, previous) => {
   return `${diff >= 0 ? "+" : ""}${diff.toFixed(1)}%`;
 };
 
+const formatOrderId = (order) => {
+  if (order.paymentReference) {
+    return order.paymentReference;
+  }
+
+  return `ORD-${String(order._id).slice(-6).toUpperCase()}`;
+};
+
 exports.getAdminDashboard = async (req, res) => {
   try {
     /* ---------- USERS ---------- */
@@ -20,18 +28,35 @@ exports.getAdminDashboard = async (req, res) => {
     /* ---------- ORDERS ---------- */
     const totalOrders = await Order.countDocuments();
     const revenueAgg = await Order.aggregate([
-      { $match: { status: "completed" } },
+      { $match: { status: "Completed" } },
       { $group: { _id: null, total: { $sum: "$totalAmount" } } },
     ]);
     const revenue = revenueAgg[0]?.total || 0;
 
-    const recentOrders = await Order.find()
+    const recentOrdersRaw = await Order.find()
       .sort({ createdAt: -1 })
       .limit(5)
-      .select("orderNumber customerName items totalAmount status");
+      .populate({
+        path: "items.book",
+        select: "title",
+      })
+      .select("userInfo items totalAmount status paymentReference createdAt");
+
+    const recentOrders = recentOrdersRaw.map((order) => ({
+      _id: order._id,
+      orderNumber: formatOrderId(order),
+      customerName: order.userInfo?.name || "Guest customer",
+      items: order.items.map((item) => ({
+        name: item.book?.title || "Story",
+        quantity: item.quantity,
+      })),
+      totalAmount: order.totalAmount || 0,
+      status: order.status,
+      createdAt: order.createdAt,
+    }));
 
     /* ---------- BLOG ---------- */
-    const blogs = await Blog.find({ status: "published" });
+    const blogs = await Blog.find();
     const totalBlogViews = blogs.reduce(
       (sum, blog) => sum + (blog.views || 0),
       0,
@@ -44,7 +69,7 @@ exports.getAdminDashboard = async (req, res) => {
 
     /* ---------- BOOKS ---------- */
 
-    const books = await BooksModel.find({ status: "published" });
+    const books = await BooksModel.find();
     const totalBookViews = books.reduce(
       (sum, book) => sum + (book.views || 0),
       0,
@@ -76,15 +101,15 @@ exports.getAdminDashboard = async (req, res) => {
           },
           revenue: {
             value: revenue,
-            change: "",
+            change: "+0%",
           },
           blogViews: {
             value: totalBlogViews,
-            change: "",
+            change: "+0%",
           },
           bookViews: {
             value: totalBookViews,
-            change: "",
+            change: "+0%",
           },
         },
 
