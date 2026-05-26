@@ -11,7 +11,10 @@ const uploadToCloudinary = (
         folder,
         resource_type: resourceType,
         format,
+        public_id: publicId,
         access_mode: "public",
+        use_filename: true,
+        unique_filename: true,
       },
       (error, result) => {
         if (error) return reject(error);

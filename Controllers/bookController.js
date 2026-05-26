@@ -27,12 +27,21 @@ exports.createBook = async (req, res) => {
     let pdfUrl = null;
 
     if (req.files?.pdfFile) {
-      const pdfUpload = await uploadToCloudinary(req.files.pdfFile[0].buffer, {
+      const file = req.files.pdfFile[0];
+
+      const originalName = file.originalname.replace(".pdf", "") + ".pdf";
+
+      const pdfUpload = await uploadToCloudinary(file.buffer, {
         folder: "stories/pdfs",
         resourceType: "raw",
+        publicId: originalName,
+        format: "pdf",
       });
 
-      pdfUrl = pdfUpload.secure_url;
+      pdfUrl = pdfUpload.secure_url.replace(
+        "/upload/",
+        "/upload/fl_attachment:false/",
+      );
     }
 
     const book = await Book.create({
