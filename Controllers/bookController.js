@@ -1,48 +1,100 @@
 const Book = require("../Models/BooksModel");
 const Library = require("../Models/LibraryModel");
-const uploadToCloudinary = require("../utill/uploadToCloudinary");
+const {
+  normalizeCloudinaryDeliveryUrl,
+  uploadFileToCloudinary,
+} = require("../services/cloudinaryUploadService");
+
+const getFirstFile = (files, fieldName) => files?.[fieldName]?.[0];
+
+const normalizeBookMediaUrls = (book) => {
+  if (!book) return book;
+
+  const data = typeof book.toObject === "function" ? book.toObject() : book;
+  const fields = [
+    "coverImage",
+    "pdfFile",
+    "audioFile",
+    "videoFile",
+    "mediaUrl",
+    "audioUrl",
+    "videoUrl",
+  ];
+
+  for (const field of fields) {
+    if (data[field]) data[field] = normalizeCloudinaryDeliveryUrl(data[field]);
+  }
+
+  return data;
+};
+
+const normalizeBooksMediaUrls = (books) => books.map(normalizeBookMediaUrls);
+
+const uploadBookFile = (file, folder, options = {}) =>
+  uploadFileToCloudinary(file, {
+    folder,
+    ...options,
+  });
 
 /**
  * CREATE BOOK (ADMIN)
  */
 exports.createBook = async (req, res) => {
   try {
-    if (!req.files?.coverImage) {
+    const coverImage = getFirstFile(req.files, "coverImage");
+
+    if (!coverImage) {
       return res.status(400).json({
         success: false,
         message: "Cover image is required",
       });
     }
 
-    // Upload cover image
-    const coverUpload = await uploadToCloudinary(
-      req.files.coverImage[0].buffer,
-      {
-        folder: "stories/covers",
-        resourceType: "image",
-      },
-    );
+    const coverUpload = await uploadBookFile(coverImage, "stories/covers", {
+      resourceType: "image",
+      kind: "image",
+    });
 
-    // Upload PDF (optional or required — your choice)
     let pdfUrl = null;
+    let audioUrl = null;
+    let videoUrl = null;
+    let mediaUrl = null;
 
-    if (req.files?.pdfFile) {
-      const file = req.files.pdfFile[0];
-
-      const originalName = file.originalname.replace(".pdf", "") + ".pdf";
-
-      const pdfUpload = await uploadToCloudinary(file.buffer, {
-        folder: "stories/pdfs",
+    const pdfFile = getFirstFile(req.files, "pdfFile");
+    if (pdfFile) {
+      const pdfUpload = await uploadBookFile(pdfFile, "stories/pdfs", {
         resourceType: "raw",
-        publicId: originalName,
+        kind: "pdf",
         format: "pdf",
       });
-
-      pdfUrl = pdfUpload.secure_url.replace(
-        "/upload/",
-        "/upload/fl_attachment:false/",
-      );
+      pdfUrl = pdfUpload.publicUrl;
     }
+
+    const audioFile = getFirstFile(req.files, "audioFile");
+    if (audioFile) {
+      const audioUpload = await uploadBookFile(audioFile, "stories/audio", {
+        resourceType: "video",
+        kind: "audio",
+      });
+      audioUrl = audioUpload.publicUrl;
+    }
+
+    const videoFile = getFirstFile(req.files, "videoFile");
+    if (videoFile) {
+      const videoUpload = await uploadBookFile(videoFile, "stories/videos", {
+        resourceType: "video",
+        kind: "video",
+      });
+      videoUrl = videoUpload.publicUrl;
+    }
+
+    const mediaFile = getFirstFile(req.files, "mediaUrl");
+    if (mediaFile) {
+      const mediaUpload = await uploadBookFile(mediaFile, "stories/media");
+      mediaUrl = mediaUpload.publicUrl;
+    }
+
+    mediaUrl = mediaUrl || videoUrl || audioUrl || pdfUrl || null;
 
     const book = await Book.create({
       title: req.body.title,
@@ -61,8 +113,13 @@ exports.createBook = async (req, res) => {
       ageRating: req.body.ageRating,
       price: Number(req.body.price) || 0,
 
-      coverImage: coverUpload.secure_url,
-      pdfFile: pdfUrl, // 👈 PDF stored here
+      coverImage: coverUpload.publicUrl,
+      pdfFile: pdfUrl,
+      audioFile: audioUrl,
+      videoFile: videoUrl,
+      mediaUrl,
+      audioUrl,
+      videoUrl,
 
       status: req.body.status || "draft",
       createdBy: req.admin.id,
@@ -71,10 +128,10 @@ exports.createBook = async (req, res) => {
     res.status(201).json({
       success: true,
       message: "Book created successfully",
-      data: book,
+      data: normalizeBookMediaUrls(book),
     });
   } catch (error) {
-    res.status(500).json({
+    res.status(error.statusCode || 500).json({
       success: false,
       error: error.message,
     });
@@ -92,30 +149,53 @@ exports.updateBook = async (req, res) => {
       updates.tags = updates.tags.split(",").map((tag) => tag.trim());
     }
 
-    // Replace cover image
-    if (req.files?.coverImage) {
-      const coverUpload = await uploadToCloudinary(
-        req.files.coverImage[0].buffer,
-        {
-          folder: "stories/covers",
-          resourceType: "image",
-        },
-      );
-      updates.coverImage = coverUpload.secure_url;
+    const coverImage = getFirstFile(req.files, "coverImage");
+    if (coverImage) {
+      const coverUpload = await uploadBookFile(coverImage, "stories/covers", {
+        resourceType: "image",
+        kind: "image",
+      });
+      updates.coverImage = coverUpload.publicUrl;
     }
 
-    // Replace PDF
-    if (req.files?.pdfFile) {
-      const pdfUpload = await uploadToCloudinary(req.files.pdfFile[0].buffer, {
-        folder: "stories/pdfs",
+    const pdfFile = getFirstFile(req.files, "pdfFile");
+    if (pdfFile) {
+      const pdfUpload = await uploadBookFile(pdfFile, "stories/pdfs", {
         resourceType: "raw",
+        kind: "pdf",
+        format: "pdf",
       });
+      updates.pdfFile = pdfUpload.publicUrl;
+    }
 
-      // FORCE INLINE PDF VIEWING
-      pdfUrl = pdfUpload.secure_url.replace(
-        "/upload/",
-        "/upload/fl_attachment:false/",
-      );
+    const audioFile = getFirstFile(req.files, "audioFile");
+    if (audioFile) {
+      const audioUpload = await uploadBookFile(audioFile, "stories/audio", {
+        resourceType: "video",
+        kind: "audio",
+      });
+      updates.audioFile = audioUpload.publicUrl;
+      updates.audioUrl = audioUpload.publicUrl;
+    }
+
+    const videoFile = getFirstFile(req.files, "videoFile");
+    if (videoFile) {
+      const videoUpload = await uploadBookFile(videoFile, "stories/videos", {
+        resourceType: "video",
+        kind: "video",
+      });
+      updates.videoFile = videoUpload.publicUrl;
+      updates.videoUrl = videoUpload.publicUrl;
+    }
+
+    const mediaFile = getFirstFile(req.files, "mediaUrl");
+    if (mediaFile) {
+      const mediaUpload = await uploadBookFile(mediaFile, "stories/media");
+      updates.mediaUrl = mediaUpload.publicUrl;
+    }
+
+    if (!updates.mediaUrl && (updates.videoFile || updates.audioFile || updates.pdfFile)) {
+      updates.mediaUrl = updates.videoFile || updates.audioFile || updates.pdfFile;
     }
 
     if (updates.price) updates.price = Number(updates.price);
@@ -136,10 +216,10 @@ exports.updateBook = async (req, res) => {
     res.status(200).json({
       success: true,
       message: "Book updated successfully",
-      data: book,
+      data: normalizeBookMediaUrls(book),
     });
   } catch (error) {
-    res.status(400).json({
+    res.status(error.statusCode || 400).json({
       success: false,
       error: error.message,
     });
@@ -184,7 +264,7 @@ exports.getAllBooksAdmin = async (req, res) => {
     res.status(200).json({
       success: true,
       count: books.length,
-      data: books,
+      data: normalizeBooksMediaUrls(books),
     });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -203,7 +283,7 @@ exports.getPublicBooks = async (req, res) => {
     res.status(200).json({
       success: true,
       count: books.length,
-      data: books,
+      data: normalizeBooksMediaUrls(books),
     });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -229,7 +309,7 @@ exports.getSingleBook = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      data: book,
+      data: normalizeBookMediaUrls(book),
     });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -263,6 +343,7 @@ exports.downloadBook = async (req, res) => {
         title: book.title,
         subtitle: book.subtitle,
         content: book.content,
+        pdfFile: normalizeCloudinaryDeliveryUrl(book.pdfFile),
       },
     });
   } catch (error) {
@@ -283,17 +364,15 @@ exports.downloadPurchasedBook = async (req, res) => {
       });
     }
 
-    // Free book
     if (book.price === 0) {
       return res.status(200).json({
         success: true,
         data: {
-          pdfFile: book.pdfFile,
+          pdfFile: normalizeCloudinaryDeliveryUrl(book.pdfFile),
         },
       });
     }
 
-    // Check ownership
     const owned = await Library.findOne({
       email: String(email || "")
         .toLowerCase()
@@ -312,7 +391,7 @@ exports.downloadPurchasedBook = async (req, res) => {
     res.status(200).json({
       success: true,
       data: {
-        pdfFile: book.pdfFile,
+        pdfFile: normalizeCloudinaryDeliveryUrl(book.pdfFile),
       },
     });
   } catch (error) {

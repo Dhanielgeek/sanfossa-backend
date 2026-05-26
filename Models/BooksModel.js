@@ -52,6 +52,9 @@ const BookSchema = new mongoose.Schema(
     },
 
     images: [String],
+    audioFile: String,
+    videoFile: String,
+    mediaUrl: String,
     audioUrl: String,
     videoUrl: String,
 

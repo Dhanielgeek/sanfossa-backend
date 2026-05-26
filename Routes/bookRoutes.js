@@ -43,7 +43,10 @@ router.get("/:id/download", protect, downloadBook);
 
 const bookUploads = upload.fields([
   { name: "coverImage", maxCount: 1 },
-  { name: "pdfFile", maxCount: 1 }, // <-- PDF field
+  { name: "pdfFile", maxCount: 1 },
+  { name: "audioFile", maxCount: 1 },
+  { name: "videoFile", maxCount: 1 },
+  { name: "mediaUrl", maxCount: 1 },
 ]);
 
 // Create story (with image + PDF upload)

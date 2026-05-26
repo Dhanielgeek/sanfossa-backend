@@ -1,5 +1,5 @@
 const Blog = require("../Models/BlogModel");
-const uploadToCloudinary = require("../utill/uploadToCloudinary");
+const { uploadFileToCloudinary } = require("../services/cloudinaryUploadService");
 
 exports.createBlog = async (req, res) => {
   try {
@@ -10,7 +10,11 @@ exports.createBlog = async (req, res) => {
       });
     }
 
-    const uploadResult = await uploadToCloudinary(req.file.buffer, "blogs");
+    const uploadResult = await uploadFileToCloudinary(req.file, {
+      folder: "blogs",
+      resourceType: "image",
+      kind: "image",
+    });
 
     const blog = await Blog.create({
       ...req.body,
@@ -121,7 +125,11 @@ exports.getAllBlogsAdmin = async (req, res) => {
 exports.updateBlog = async (req, res) => {
   try {
     if (req.file) {
-      const uploadResult = await uploadToCloudinary(req.file.buffer, "blogs");
+      const uploadResult = await uploadFileToCloudinary(req.file, {
+        folder: "blogs",
+        resourceType: "image",
+        kind: "image",
+      });
       req.body.featuredImage = uploadResult.secure_url;
     }
 

@@ -1,21 +1,19 @@
 const multer = require("multer");
+const { detectFileType } = require("../services/cloudinaryUploadService");
 
 const storage = multer.memoryStorage();
 
 const fileFilter = (req, file, cb) => {
-  // Allow images or PDFs
-  if (
-    file.mimetype.startsWith("image") ||
-    file.mimetype === "application/pdf"
-  ) {
+  try {
+    detectFileType(file);
     cb(null, true);
-  } else {
-    cb(new Error("Only image and PDF files are allowed"), false);
+  } catch (error) {
+    cb(error, false);
   }
 };
 
 module.exports = multer({
   storage,
   fileFilter,
-  limits: { fileSize: 20 * 1024 * 1024 },
+  limits: { fileSize: Number(process.env.MAX_UPLOAD_SIZE_MB || 100) * 1024 * 1024 },
 });
