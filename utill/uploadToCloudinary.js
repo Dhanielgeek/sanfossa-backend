@@ -1,29 +1,15 @@
-const cloudinary = require("../config/cloudinary");
-const streamifier = require("streamifier");
+const { uploadBufferToCloudinary } = require("../services/cloudinaryUploadService");
 
 const uploadToCloudinary = (
   fileBuffer,
-  { folder = "blogs", resourceType = "auto", format, publicId } = {},
+  options = {},
 ) => {
-  return new Promise((resolve, reject) => {
-    const stream = cloudinary.uploader.upload_stream(
-      {
-        folder,
-        resource_type: resourceType,
-        format,
-        public_id: publicId,
-        access_mode: "public",
-        use_filename: true,
-        unique_filename: true,
-      },
-      (error, result) => {
-        if (error) return reject(error);
+  const normalizedOptions =
+    typeof options === "string" ? { folder: options, resourceType: "image" } : options;
 
-        resolve(result);
-      },
-    );
-
-    streamifier.createReadStream(fileBuffer).pipe(stream);
+  return uploadBufferToCloudinary(fileBuffer, {
+    folder: "blogs",
+    ...normalizedOptions,
   });
 };
 

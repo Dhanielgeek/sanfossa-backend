@@ -1,5 +1,5 @@
 const Upload = require("../Models/Uploadmodel");
-const uploadToCloudinary = require("../utill/uploadToCloudinary");
+const { uploadFileToCloudinary } = require("../services/cloudinaryUploadService");
 const cloudinary = require("../config/cloudinary");
 /**
  * @desc    Admin upload 2–3 images with descriptions
@@ -45,7 +45,11 @@ exports.createUpload = async (req, res) => {
     for (let i = 0; i < req.files.length; i++) {
       const file = req.files[i];
 
-      const result = await uploadToCloudinary(file.buffer, "admin_uploads");
+      const result = await uploadFileToCloudinary(file, {
+        folder: "admin_uploads",
+        resourceType: "image",
+        kind: "image",
+      });
 
       uploadedImages.push({
         public_id: result.public_id,
