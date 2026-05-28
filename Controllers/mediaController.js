@@ -1,10 +1,100 @@
-const cloudinary = require("../config/cloudinary");
+const path = require("path");
+const { UTApi, UTFile } = require("uploadthing/server");
 const Media = require("../Models/MediaModel");
-const {
-  uploadFileToCloudinary,
-  detectFileType,
-  makeCloudinaryPreviewUrl,
-} = require("../services/cloudinaryUploadService");
+
+const utapi = new UTApi();
+
+const IMAGE_EXTENSIONS = new Set([
+  ".jpg",
+  ".jpeg",
+  ".png",
+  ".webp",
+  ".gif",
+  ".avif",
+  ".bmp",
+  ".tif",
+  ".tiff",
+  ".svg",
+]);
+
+const AUDIO_EXTENSIONS = new Set([
+  ".mp3",
+  ".wav",
+  ".m4a",
+  ".aac",
+  ".ogg",
+  ".oga",
+  ".flac",
+  ".webm",
+]);
+
+const VIDEO_EXTENSIONS = new Set([
+  ".mp4",
+  ".mov",
+  ".m4v",
+  ".avi",
+  ".mkv",
+  ".webm",
+  ".3gp",
+  ".mpeg",
+  ".mpg",
+]);
+
+const PDF_MIME_TYPES = new Set(["application/pdf", "application/x-pdf"]);
+
+const detectFileType = (file = {}) => {
+  const mimetype = String(file.mimetype || "").toLowerCase();
+  const extension = path.extname(file.originalname || "").toLowerCase();
+
+  if (PDF_MIME_TYPES.has(mimetype) || extension === ".pdf") return "pdf";
+  if (mimetype.startsWith("image/") || IMAGE_EXTENSIONS.has(extension)) return "image";
+  if (mimetype.startsWith("audio/") || AUDIO_EXTENSIONS.has(extension)) return "audio";
+  if (mimetype.startsWith("video/") || VIDEO_EXTENSIONS.has(extension)) return "video";
+
+  const error = new Error(
+    `Unsupported file type: ${file.mimetype || "unknown"} ${extension || ""}`.trim(),
+  );
+  error.statusCode = 415;
+  throw error;
+};
+
+const uploadFileToUploadThing = async (file, metadata = {}) => {
+  if (!file?.buffer || !Buffer.isBuffer(file.buffer)) {
+    const error = new Error("A valid uploaded file buffer is required");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const uploadThingFile = new UTFile([file.buffer], file.originalname, {
+    type: file.mimetype,
+  });
+
+  const [response] = await utapi.uploadFiles([uploadThingFile], {
+    acl: "public-read",
+    contentDisposition: "inline",
+    metadata,
+  });
+
+  if (response?.error) {
+    const error = new Error(response.error.message || "UploadThing upload failed");
+    error.statusCode = 502;
+    error.details = response.error;
+    throw error;
+  }
+
+  const publicUrl = response?.data?.ufsUrl || response?.data?.url;
+
+  if (!publicUrl || !response?.data?.key) {
+    const error = new Error("UploadThing upload did not return a public file URL");
+    error.statusCode = 502;
+    throw error;
+  }
+
+  return {
+    ...response.data,
+    publicUrl,
+  };
+};
 
 exports.uploadMedia = async (req, res) => {
   try {
@@ -14,30 +104,23 @@ exports.uploadMedia = async (req, res) => {
         .json({ success: false, message: "A file is required" });
     }
 
-    const detected = detectFileType(req.file);
+    const fileType = detectFileType(req.file);
 
-    const result = await uploadFileToCloudinary(req.file, {
-      folder: "media",
+    const result = await uploadFileToUploadThing(req.file, {
+      uploadedBy: String(req.admin?._id || req.admin?.id || ""),
+      fileType,
     });
-
-    console.log({ result });
-
-    // PDFs get fl_attachment:false so the browser renders them inline
-    const viewUrl =
-      detected.kind === "pdf"
-        ? makeCloudinaryPreviewUrl(result.secure_url)
-        : result.secure_url;
 
     const media = await Media.create({
       title: String(req.body.title || "").trim(),
       description: String(req.body.description || "").trim(),
       originalName: req.file.originalname,
-      fileType: detected.kind === "pdf" ? "pdf" : detected.kind,
+      fileType,
       mimeType: req.file.mimetype,
-      url: result.secure_url,
-      viewUrl,
-      publicId: result.public_id,
-      fileSize: req.file.size,
+      url: result.publicUrl,
+      viewUrl: result.publicUrl,
+      publicId: result.key,
+      fileSize: result.size || req.file.size,
       uploadedBy: req.admin?._id || req.admin?.id || null,
     });
 
@@ -106,16 +189,14 @@ exports.deleteMedia = async (req, res) => {
         .json({ success: false, message: "Media not found" });
     }
 
-    const resourceType =
-      media.fileType === "pdf"
-        ? "raw"
-        : media.fileType === "image"
-          ? "image"
-          : "video";
+    if (media.publicId) {
+      try {
+        await utapi.deleteFiles(media.publicId);
+      } catch (error) {
+        console.warn("UploadThing file deletion skipped:", error.message);
+      }
+    }
 
-    await cloudinary.uploader.destroy(media.publicId, {
-      resource_type: resourceType,
-    });
     await media.deleteOne();
 
     return res
