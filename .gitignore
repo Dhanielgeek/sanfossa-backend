@@ -57,5 +57,8 @@ typings/
 # dotenv environment variables file
 .env
 
+# Local upload temp files
+uploads/pdfs/
+
 # next.js build output
 .next
