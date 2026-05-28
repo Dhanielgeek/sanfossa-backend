@@ -7,14 +7,14 @@ const NewsletterSchema = new mongoose.Schema(
     content: { type: String, required: true }, // HTML content
     status: {
       type: String,
-      enum: ["draft", "sent", "partial", "dry-sent"],
+      enum: ["draft", "scheduled", "sent", "partial", "dry-sent"],
       default: "draft",
     },
     sentAt: { type: Date },
+    scheduledAt: { type: Date },
     metrics: {
       totalRecipients: { type: Number, default: 0 },
       sent: { type: Number, default: 0 },
-      scheduledAt: Date,
       failed: { type: Number, default: 0 },
       dryRun: { type: Boolean, default: false },
       lastAttemptAt: { type: Date },

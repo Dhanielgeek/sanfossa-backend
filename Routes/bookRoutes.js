@@ -29,7 +29,7 @@ router.get("/", getPublicBooks);
 router.get("/admin/all", adminProtect, getAllBooksAdmin);
 
 // Download purchased story
-router.post("/:id/download-purchased", protect, downloadPurchasedBook);
+router.post("/:id/download-purchased", downloadPurchasedBook);
 
 // Get single published story
 router.get("/:id", getSingleBook);
@@ -59,8 +59,8 @@ router.put("/:id", adminProtect, bookUploads, updateBook);
 router.delete("/:id", adminProtect, deleteBook);
 
 //View books
-// router.post("/books/:id/view", incrementBookView);
-
+router.post("/:id/track-view", trackBookView);
+router.post("/books/:id/view", trackBookView);
 router.post("/books/:id/track-view", trackBookView);
 
 module.exports = router;
