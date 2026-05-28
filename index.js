@@ -5,6 +5,7 @@ const dotenv = require("dotenv");
 const mongoose = require("mongoose");
 const cors = require("cors");
 const path = require("path");
+const morgan = require("morgan");
 
 require("./cron/publishScheduledBlogs");
 const {
@@ -40,10 +41,12 @@ const allowedOrigins = [
 
 app.use(
   cors({
-    origin: true,
+    origin: "*",
     credentials: true,
   }),
 );
+
+app.use(morgan("dev"));
 
 app.use(express.json());
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
@@ -65,6 +68,7 @@ const subscriberGroupRoutes = require("./Routes/subscriberGroupRoutes");
 const transactionRoutes = require("./Routes/transactionsRoutes");
 const waitlistRoutes = require("./Routes/waitlistRoutes");
 const libraryRoutes = require("./Routes/libraryRoutes");
+const mediaRoutes = require("./Routes/mediaRoutes");
 const { sendEmail } = require("./services/emailservice");
 
 app.use("/api/auth", authRoutes);
@@ -85,6 +89,7 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/admin", adminDashboardRoutes);
 app.use("/api/uploads", uploadRoutes);
 app.use("/api/pdfs", pdfRoutes);
+app.use("/api/media", mediaRoutes);
 // Health endpoints (e.g. MailerLite token validation)
 app.use("/api/health", healthRoutes);
 
