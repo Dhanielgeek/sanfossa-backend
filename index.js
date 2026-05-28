@@ -1,4 +1,5 @@
 // --- index.js ---
+require("dotenv").config();
 const express = require("express");
 const dotenv = require("dotenv");
 const mongoose = require("mongoose");
@@ -6,10 +7,9 @@ const cors = require("cors");
 const path = require("path");
 
 require("./cron/publishScheduledBlogs");
-const { processDueScheduledNewsletters } = require("./cron/sendScheduledNewsletters");
-
-// 1. Load env
-dotenv.config();
+const {
+  processDueScheduledNewsletters,
+} = require("./cron/sendScheduledNewsletters");
 
 // 2. App
 const app = express();
