@@ -1,14 +1,149 @@
+const path = require("path");
+const { UTApi, UTFile } = require("uploadthing/server");
 const Book = require("../Models/BooksModel");
 const Library = require("../Models/LibraryModel");
-const cloudinary = require("../config/cloudinary");
-const {
-  makeCloudinaryPreviewUrl,
-  normalizeCloudinaryDeliveryUrl,
-  uploadFileToCloudinary,
-} = require("../services/cloudinaryUploadService");
 
 const getFirstFile = (files, fieldName) => files?.[fieldName]?.[0];
 const PDF_MAX_SIZE_BYTES = 20 * 1024 * 1024;
+const utapi = new UTApi();
+
+const IMAGE_EXTENSIONS = new Set([
+  ".jpg",
+  ".jpeg",
+  ".png",
+  ".webp",
+  ".gif",
+  ".avif",
+  ".bmp",
+  ".tif",
+  ".tiff",
+  ".svg",
+]);
+
+const AUDIO_EXTENSIONS = new Set([
+  ".mp3",
+  ".wav",
+  ".m4a",
+  ".aac",
+  ".ogg",
+  ".oga",
+  ".flac",
+  ".webm",
+]);
+
+const VIDEO_EXTENSIONS = new Set([
+  ".mp4",
+  ".mov",
+  ".m4v",
+  ".avi",
+  ".mkv",
+  ".webm",
+  ".3gp",
+  ".mpeg",
+  ".mpg",
+]);
+
+const PDF_MIME_TYPES = new Set(["application/pdf", "application/x-pdf"]);
+
+const detectBookFileType = (file = {}) => {
+  const mimetype = String(file.mimetype || "").toLowerCase();
+  const extension = path.extname(file.originalname || "").toLowerCase();
+
+  if (PDF_MIME_TYPES.has(mimetype) || extension === ".pdf") return "pdf";
+  if (mimetype.startsWith("image/") || IMAGE_EXTENSIONS.has(extension)) return "image";
+  if (mimetype.startsWith("audio/") || AUDIO_EXTENSIONS.has(extension)) return "audio";
+  if (mimetype.startsWith("video/") || VIDEO_EXTENSIONS.has(extension)) return "video";
+
+  const error = new Error(
+    `Unsupported file type: ${file.mimetype || "unknown"} ${extension || ""}`.trim(),
+  );
+  error.statusCode = 415;
+  throw error;
+};
+
+const uploadBookFile = async (file, folder, options = {}) => {
+  if (!file?.buffer || !Buffer.isBuffer(file.buffer)) {
+    const error = new Error("A valid uploaded file buffer is required");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const fileType = detectBookFileType(file);
+  const expectedKind = options.kind || options.fileType;
+
+  if (expectedKind && expectedKind !== fileType) {
+    const error = new Error(`Expected a ${expectedKind} upload but received ${fileType}`);
+    error.statusCode = 415;
+    throw error;
+  }
+
+  if (options.resourceType === "image" && fileType !== "image") {
+    const error = new Error(`Expected an image upload but received ${fileType}`);
+    error.statusCode = 415;
+    throw error;
+  }
+
+  if (options.resourceType === "raw" && fileType !== "pdf") {
+    const error = new Error(`Expected a pdf upload but received ${fileType}`);
+    error.statusCode = 415;
+    throw error;
+  }
+
+  if (
+    options.resourceType === "video" &&
+    fileType !== "audio" &&
+    fileType !== "video"
+  ) {
+    const error = new Error(`Expected an audio/video upload but received ${fileType}`);
+    error.statusCode = 415;
+    throw error;
+  }
+
+  const uploadThingFile = new UTFile([file.buffer], file.originalname, {
+    type: file.mimetype,
+  });
+
+  const [response] = await utapi.uploadFiles([uploadThingFile], {
+    acl: "public-read",
+    contentDisposition: "inline",
+    metadata: {
+      folder,
+      fileType,
+    },
+  });
+
+  if (response?.error) {
+    const error = new Error(response.error.message || "UploadThing upload failed");
+    error.statusCode = 502;
+    error.details = response.error;
+    throw error;
+  }
+
+  const publicUrl = response?.data?.ufsUrl || response?.data?.url;
+
+  if (!publicUrl || !response?.data?.key) {
+    const error = new Error("UploadThing upload did not return a public file URL");
+    error.statusCode = 502;
+    throw error;
+  }
+
+  return {
+    ...response.data,
+    publicUrl,
+    public_id: response.data.key,
+    fileType,
+  };
+};
+
+const deleteUploadThingFile = async (fileKey) => {
+  if (!fileKey) return;
+
+  try {
+    await utapi.deleteFiles(fileKey);
+  } catch (error) {
+    console.warn("UploadThing file deletion skipped:", error.message);
+  }
+};
 
 const validateBookPdfFile = (file) => {
   if (!file) return;
@@ -33,39 +168,11 @@ const normalizeBookMediaUrls = (book) => {
   if (!book) return book;
 
   const data = typeof book.toObject === "function" ? book.toObject() : book;
-  const fields = ["coverImage", "audioFile", "videoFile", "audioUrl", "videoUrl"];
-
-  if (data.pdfFile) data.pdfFile = makeCloudinaryPreviewUrl(data.pdfFile);
-
-  for (const field of fields) {
-    if (data[field]) data[field] = normalizeCloudinaryDeliveryUrl(data[field]);
-  }
-
-  if (data.mediaUrl) {
-    data.mediaUrl =
-      data.pdfFile && data.mediaUrl.includes("/raw/upload/")
-        ? makeCloudinaryPreviewUrl(data.mediaUrl)
-        : normalizeCloudinaryDeliveryUrl(data.mediaUrl);
-  }
 
   return data;
 };
 
 const normalizeBooksMediaUrls = (books) => books.map(normalizeBookMediaUrls);
-
-const uploadBookFile = (file, folder, options = {}) =>
-  uploadFileToCloudinary(file, {
-    folder,
-    ...options,
-  });
-
-const deleteCloudinaryRaw = async (publicId) => {
-  if (!publicId) return;
-
-  await cloudinary.uploader.destroy(publicId, {
-    resource_type: "raw",
-  });
-};
 
 /**
  * CREATE BOOK (ADMIN)
@@ -103,7 +210,7 @@ exports.createBook = async (req, res) => {
         kind: "pdf",
         format: "pdf",
       });
-      pdfUrl = makeCloudinaryPreviewUrl(pdfUpload.publicUrl);
+      pdfUrl = pdfUpload.publicUrl;
       pdfPublicId = pdfUpload.public_id;
       uploadedPdfPublicId = pdfUpload.public_id;
     }
@@ -172,7 +279,7 @@ exports.createBook = async (req, res) => {
   } catch (error) {
     if (uploadedPdfPublicId) {
       try {
-        await deleteCloudinaryRaw(uploadedPdfPublicId);
+        await deleteUploadThingFile(uploadedPdfPublicId);
       } catch (cleanupError) {
         console.error(
           "Failed to remove orphaned book PDF:",
@@ -233,7 +340,7 @@ exports.updateBook = async (req, res) => {
         kind: "pdf",
         format: "pdf",
       });
-      updates.pdfFile = makeCloudinaryPreviewUrl(pdfUpload.publicUrl);
+      updates.pdfFile = pdfUpload.publicUrl;
       updates.pdfPublicId = pdfUpload.public_id;
       uploadedPdfPublicId = pdfUpload.public_id;
     }
@@ -284,7 +391,7 @@ exports.updateBook = async (req, res) => {
     }
 
     if (updates.pdfPublicId && oldPdfPublicId) {
-      await deleteCloudinaryRaw(oldPdfPublicId);
+      await deleteUploadThingFile(oldPdfPublicId);
     }
 
     res.status(200).json({
@@ -295,7 +402,7 @@ exports.updateBook = async (req, res) => {
   } catch (error) {
     if (uploadedPdfPublicId) {
       try {
-        await deleteCloudinaryRaw(uploadedPdfPublicId);
+        await deleteUploadThingFile(uploadedPdfPublicId);
       } catch (cleanupError) {
         console.error(
           "Failed to remove orphaned book PDF:",
@@ -325,7 +432,7 @@ exports.deleteBook = async (req, res) => {
       });
     }
 
-    await deleteCloudinaryRaw(book.pdfPublicId);
+    await deleteUploadThingFile(book.pdfPublicId);
 
     await book.deleteOne();
 
@@ -434,7 +541,7 @@ exports.downloadBook = async (req, res) => {
         title: book.title,
         subtitle: book.subtitle,
         content: book.content,
-        pdfFile: normalizeCloudinaryDeliveryUrl(book.pdfFile),
+        pdfFile: book.pdfFile,
       },
     });
   } catch (error) {
@@ -458,7 +565,7 @@ exports.downloadPurchasedBook = async (req, res) => {
       return res.status(200).json({
         success: true,
         data: {
-          pdfFile: normalizeCloudinaryDeliveryUrl(book.pdfFile),
+          pdfFile: book.pdfFile,
         },
       });
     }
@@ -483,7 +590,7 @@ exports.downloadPurchasedBook = async (req, res) => {
     res.status(200).json({
       success: true,
       data: {
-        pdfFile: normalizeCloudinaryDeliveryUrl(book.pdfFile),
+        pdfFile: book.pdfFile,
       },
     });
   } catch (error) {
