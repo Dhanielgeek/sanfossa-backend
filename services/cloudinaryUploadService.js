@@ -110,6 +110,13 @@ const normalizeCloudinaryDeliveryUrl = (url) => {
   return url.replace("/upload/fl_attachment:false/", "/upload/");
 };
 
+const makeCloudinaryPreviewUrl = (url) => {
+  if (!url || typeof url !== "string") return url;
+  if (url.includes("/upload/fl_attachment:false/")) return url;
+
+  return url.replace("/upload/", "/upload/fl_attachment:false/");
+};
+
 const streamUpload = (buffer, uploadOptions) =>
   new Promise((resolve, reject) => {
     const stream = cloudinary.uploader.upload_stream(uploadOptions, (error, result) => {
@@ -194,6 +201,7 @@ const uploadBufferToCloudinary = async (fileBuffer, options = {}) => {
 module.exports = {
   UnsupportedFileTypeError,
   detectFileType,
+  makeCloudinaryPreviewUrl,
   normalizeCloudinaryDeliveryUrl,
   uploadFileToCloudinary,
   uploadBufferToCloudinary,

@@ -50,6 +50,7 @@ const BookSchema = new mongoose.Schema(
     pdfFile: {
       type: String,
     },
+    pdfPublicId: String,
 
     images: [String],
     audioFile: String,

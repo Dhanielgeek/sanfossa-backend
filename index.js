@@ -52,6 +52,7 @@ const newsletterRoutes = require("./Routes/newsletterRoutes");
 const adminRoutes = require("./Routes/adminRoutes");
 const adminDashboardRoutes = require("./Routes/adminDashboardRoutes");
 const uploadRoutes = require("./Routes/uploadRoutes");
+const pdfRoutes = require("./Routes/pdf.routes");
 const subscribeRoutes = require("./Routes/subscribeRoutes");
 const healthRoutes = require("./Routes/healthRoutes");
 const subscriberGroupRoutes = require("./Routes/subscriberGroupRoutes");
@@ -77,6 +78,7 @@ app.use("/api/subscribers", subscribeRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/admin", adminDashboardRoutes);
 app.use("/api/uploads", uploadRoutes);
+app.use("/api/pdfs", pdfRoutes);
 // Health endpoints (e.g. MailerLite token validation)
 app.use("/api/health", healthRoutes);
 
