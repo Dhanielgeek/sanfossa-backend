@@ -1,14 +1,14 @@
-const { uploadBufferToCloudinary } = require("../services/cloudinaryUploadService");
+const {
+  uploadBufferToCloudinary,
+} = require("../services/cloudinaryUploadService");
 
-const uploadToCloudinary = (
-  fileBuffer,
-  options = {},
-) => {
+const uploadToCloudinary = (fileBuffer, options = {}) => {
   const normalizedOptions =
-    typeof options === "string" ? { folder: options, resourceType: "image" } : options;
+    typeof options === "string" ? { folder: options } : options;
 
   return uploadBufferToCloudinary(fileBuffer, {
-    folder: "blogs",
+    folder: "media",
+    access_mode: "public",
     ...normalizedOptions,
   });
 };

@@ -91,9 +91,10 @@ const detectFileType = (file = {}) => {
     AUDIO_EXTENSIONS.has(extension)
   ) {
     return {
-      kind: mimetype.startsWith("audio/") || AUDIO_EXTENSIONS.has(extension)
-        ? "audio"
-        : "video",
+      kind:
+        mimetype.startsWith("audio/") || AUDIO_EXTENSIONS.has(extension)
+          ? "audio"
+          : "video",
       resourceType: "video",
       deliveryType: "upload",
     };
@@ -119,18 +120,21 @@ const makeCloudinaryPreviewUrl = (url) => {
 
 const streamUpload = (buffer, uploadOptions) =>
   new Promise((resolve, reject) => {
-    const stream = cloudinary.uploader.upload_stream(uploadOptions, (error, result) => {
-      if (error) {
-        error.statusCode = error.http_code || error.statusCode || 502;
-        return reject(error);
-      }
+    const stream = cloudinary.uploader.upload_stream(
+      uploadOptions,
+      (error, result) => {
+        if (error) {
+          error.statusCode = error.http_code || error.statusCode || 502;
+          return reject(error);
+        }
 
-      return resolve({
-        ...result,
-        secure_url: normalizeCloudinaryDeliveryUrl(result.secure_url),
-        url: normalizeCloudinaryDeliveryUrl(result.url),
-      });
-    });
+        return resolve({
+          ...result,
+          secure_url: normalizeCloudinaryDeliveryUrl(result.secure_url),
+          url: normalizeCloudinaryDeliveryUrl(result.url),
+        });
+      },
+    );
 
     streamifier.createReadStream(buffer).on("error", reject).pipe(stream);
   });
@@ -150,10 +154,10 @@ const uploadFileToCloudinary = async (file, options = {}) => {
     if (!options.resourceType) throw error;
 
     detected = {
-        kind: options.kind || options.resourceType,
-        resourceType: options.resourceType,
-        format: options.format,
-        deliveryType: "upload",
+      kind: options.kind || options.resourceType,
+      resourceType: options.resourceType,
+      format: options.format,
+      deliveryType: "upload",
     };
   }
 
@@ -167,6 +171,7 @@ const uploadFileToCloudinary = async (file, options = {}) => {
     folder: options.folder || "uploads",
     resource_type: detected.resourceType,
     type: "upload",
+    access_mode: options.access_mode || "public",
     public_id: sanitizePublicId(options.publicId || file.originalname),
     use_filename: true,
     unique_filename: options.uniqueFilename !== false,
