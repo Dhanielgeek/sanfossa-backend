@@ -33,12 +33,15 @@ exports.register = async (req, res) => {
 
     res.status(201).json({
       success: true,
+
       data: {
-        _id: user._id,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        email: user.email,
-        role: user.role,
+        user: {
+          _id: "...",
+          firstName: "Daniel",
+          lastName: "Benevolent",
+          email: "danielbenevolent1@gmail.com",
+          role: "user",
+        },
         token: generateToken(user._id),
       },
     });
@@ -69,12 +72,15 @@ exports.login = async (req, res) => {
 
     res.status(200).json({
       success: true,
+      message: `Welcome ${user.firstName}!`,
       data: {
-        _id: user._id,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        email: user.email,
-        role: user.role,
+        user: {
+          _id: "...",
+          firstName: "Daniel",
+          lastName: "Benevolent",
+          email: "danielbenevolent1@gmail.com",
+          role: "user",
+        },
         token: generateToken(user._id),
       },
     });
