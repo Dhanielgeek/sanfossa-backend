@@ -22,16 +22,22 @@ const UserSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ["user", "admin", "editor"], // Account types you defined
+    enum: ["user", "editor"],
     default: "user",
   },
 
   // --- Profile Information ---
-  fullname: {
+  firstName: {
     type: String,
-    required: [true, "Please add a name"],
+    required: [true, "Please add a first name"],
     trim: true,
-    maxlength: [50, "Name cannot be more than 50 characters"],
+    maxlength: [50, "First name cannot be more than 50 characters"],
+  },
+  lastName: {
+    type: String,
+    required: [true, "Please add a last name"],
+    trim: true,
+    maxlength: [50, "Last name cannot be more than 50 characters"],
   },
 
   // --- Security & Utility Fields (For forgot password functionality) ---
@@ -48,7 +54,7 @@ const UserSchema = new mongoose.Schema({
 // [Mongoose Middleware] Encrypt password using bcrypt before saving the user
 UserSchema.pre("save", async function (next) {
   if (!this.isModified("password")) {
-    next();
+    return next();
   }
   const salt = await bcrypt.genSalt(10);
   this.password = await bcrypt.hash(this.password, salt);

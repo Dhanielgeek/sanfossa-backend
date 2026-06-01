@@ -1,86 +1,121 @@
-const express = require('express');
-const router = express.Router();
-const { protect } = require('../middleware/auth'); // Middleware for token verification
-const User = require('../models/User'); // Import User Model for profile update logic
+const jwt = require("jsonwebtoken");
+const User = require("../Models/userModel");
 
-// Assuming you have these functions defined in controllers/authController.js
-const { 
-    register, 
-    login, 
-    forgotPassword, 
-    resetPassword 
-} = require('../Controllers/authController'); 
+const generateToken = (id) =>
+  jwt.sign({ id, type: "user" }, process.env.JWT_SECRET, { expiresIn: "7d" });
 
-// ------------------------------------
-// 1. AUTHENTICATION (PUBLIC ACCESS)
-// ------------------------------------
+exports.register = async (req, res) => {
+  const { firstName, lastName, email, password } = req.body;
 
-// @route   POST /api/v1/auth/register
-// @desc    Register/Sign Up a new user
-// @access  Public
-router.post('/register', register); 
+  if (!firstName || !lastName || !email || !password) {
+    return res.status(400).json({
+      success: false,
+      error: "All fields required",
+    });
+  }
 
-// @route   POST /api/v1/auth/login
-// @desc    Log in a user & get a JWT token
-// @access  Public
-router.post('/login', login);
-
-// @route   POST /api/v1/auth/forgotpassword
-// @desc    Send password reset link/token to user email
-// @access  Public
-router.post('/forgotpassword', forgotPassword);
-
-// @route   PUT /api/v1/auth/resetpassword/:token
-// @desc    Reset password using the token sent to email
-// @access  Public
-router.put('/resetpassword/:token', resetPassword);
-
-
-// ------------------------------------
-// 2. USER PROFILE MANAGEMENT (PROTECTED)
-// ------------------------------------
-
-// @route   GET /api/v1/auth/me
-// @desc    Get current logged-in user details (Read Profile)
-// @access  Private (Requires a valid JWT)
-router.get('/me', protect, async (req, res) => {
-    // req.user is set by the 'protect' middleware
-    try {
-        const user = await User.findById(req.user.id).select('-password'); // Exclude password hash
-        if (!user) {
-            return res.status(404).json({ success: false, message: 'User not found' });
-        }
-        res.status(200).json({ success: true, data: user });
-    } catch (error) {
-        res.status(500).json({ success: false, error: 'Server Error retrieving profile' });
+  try {
+    const userExists = await User.findOne({ email });
+    if (userExists) {
+      return res.status(400).json({
+        success: false,
+        error: "Email already exists",
+      });
     }
-});
 
-// @route   PUT /api/v1/auth/updateprofile
-// @desc    Update user's name or email (Edit Profile)
-// @access  Private (Requires a valid JWT)
-router.put('/updateprofile', protect, async (req, res) => {
-    // Allows updating only non-sensitive fields
-    const fieldsToUpdate = {
-        name: req.body.name,
-        email: req.body.email
-    };
+    const user = await User.create({
+      firstName,
+      lastName,
+      email,
+      password,
+      role: "user",
+    });
 
-    try {
-        const user = await User.findByIdAndUpdate(
-            req.user.id, 
-            fieldsToUpdate, 
-            { new: true, runValidators: true } // Return new document & validate
-        ).select('-password');
+    res.status(201).json({
+      success: true,
+      data: {
+        _id: user._id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+        role: user.role,
+        token: generateToken(user._id),
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
 
-        res.status(200).json({ 
-            success: true, 
-            message: 'Profile updated successfully',
-            data: user 
-        });
-    } catch (error) {
-        res.status(400).json({ success: false, error: error.message });
+exports.login = async (req, res) => {
+  const { email, password } = req.body;
+
+  if (!email || !password) {
+    return res.status(400).json({
+      success: false,
+      error: "Email and password required",
+    });
+  }
+
+  try {
+    const user = await User.findOne({ email }).select("+password");
+
+    if (!user || !(await user.matchPassword(password))) {
+      return res.status(401).json({
+        success: false,
+        error: "Invalid credentials",
+      });
     }
-});
 
-module.exports = router;
+    res.status(200).json({
+      success: true,
+      data: {
+        _id: user._id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+        role: user.role,
+        token: generateToken(user._id),
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+exports.getProfile = async (req, res) => {
+  res.status(200).json({
+    success: true,
+    data: req.user,
+  });
+};
+
+exports.updateProfile = async (req, res) => {
+  const fieldsToUpdate = {};
+
+  if (req.body.firstName) fieldsToUpdate.firstName = req.body.firstName;
+  if (req.body.lastName) fieldsToUpdate.lastName = req.body.lastName;
+  if (req.body.email) fieldsToUpdate.email = req.body.email;
+
+  try {
+    const user = await User.findByIdAndUpdate(req.user.id, fieldsToUpdate, {
+      new: true,
+      runValidators: true,
+    }).select("-password");
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: "User not found",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Profile updated successfully",
+      data: user,
+    });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+};

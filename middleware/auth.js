@@ -28,6 +28,13 @@ exports.protect = async (req, res, next) => {
     // Verify token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
+    if (decoded.type && decoded.type !== "user") {
+      return res.status(403).json({
+        success: false,
+        message: "User access only",
+      });
+    }
+
     // Attach user to request
     req.user = await User.findById(decoded.id).select("-password");
 

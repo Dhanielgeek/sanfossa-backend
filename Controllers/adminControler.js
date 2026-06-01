@@ -132,7 +132,7 @@ exports.getAllUsers = async (req, res) => {
     // Stats for top cards
     const totalUsers = users.length;
     const activeUsers = users.length; // since no isActive field yet
-    const admins = users.filter((u) => u.role === "admin").length;
+    const admins = await Admin.countDocuments();
 
     const newThisMonth = users.filter((u) => {
       const now = new Date();
@@ -170,6 +170,42 @@ exports.getAdminProfile = async (req, res) => {
     success: true,
     data: req.admin,
   });
+};
+
+/**
+ * @desc Update admin profile
+ * @route PUT /api/admin/updateprofile
+ */
+exports.updateAdminProfile = async (req, res) => {
+  const fieldsToUpdate = {};
+
+  if (req.body.fullname) fieldsToUpdate.fullname = req.body.fullname;
+  if (req.body.email) fieldsToUpdate.email = req.body.email;
+
+  try {
+    const admin = await Admin.findByIdAndUpdate(req.admin.id, fieldsToUpdate, {
+      new: true,
+      runValidators: true,
+    }).select("-password");
+
+    if (!admin) {
+      return res.status(404).json({
+        success: false,
+        error: "Admin not found",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Admin profile updated successfully",
+      data: admin,
+    });
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      error: error.message,
+    });
+  }
 };
 
 /**
