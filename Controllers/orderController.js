@@ -19,7 +19,10 @@ exports.createOrder = async (req, res) => {
 
   try {
     const bookIds = items.map((item) => item.book);
-    const books = await Book.find({ _id: { $in: bookIds }, status: "published" });
+    const books = await Book.find({
+      _id: { $in: bookIds },
+      status: "published",
+    });
     const booksById = new Map(books.map((book) => [String(book._id), book]));
 
     const normalizedItems = items.map((item) => {
@@ -52,6 +55,7 @@ exports.createOrder = async (req, res) => {
         ...userInfo,
         email: userInfo.email.toLowerCase().trim(),
       },
+      userId: req.user._id,
       totalAmount,
     });
 
@@ -62,12 +66,18 @@ exports.createOrder = async (req, res) => {
     });
   } catch (error) {
     console.error("CREATE ORDER ERROR:", error.message);
-    return res.status(error.message.includes("Book") || error.message.includes("quantity") ? 400 : 500).json({
-      success: false,
-      error:
+    return res
+      .status(
         error.message.includes("Book") || error.message.includes("quantity")
-          ? error.message
-          : "Server error while creating order",
-    });
+          ? 400
+          : 500,
+      )
+      .json({
+        success: false,
+        error:
+          error.message.includes("Book") || error.message.includes("quantity")
+            ? error.message
+            : "Server error while creating order",
+      });
   }
 };
