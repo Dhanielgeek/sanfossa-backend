@@ -49,6 +49,14 @@ router.post("/initialize", async (req, res) => {
     order.totalAmount = amount;
     await order.save();
 
+    console.log("[TRANSACTION][INITIALIZE] order:", {
+      orderId: String(order._id),
+      user: order.user ? String(order.user) : null,
+      email: order.userInfo.email,
+      amount,
+      reference,
+    });
+
     await Transaction.create({
       order: order._id,
       reference,
@@ -91,6 +99,20 @@ router.get("/verify/:reference", async (req, res) => {
       });
     }
 
+    console.log("[TRANSACTION][VERIFY] loaded:", {
+      reference,
+      transactionId: String(transaction._id),
+      transactionStatus: transaction.paymentStatus,
+      orderId: transaction.order && transaction.order._id
+        ? String(transaction.order._id)
+        : null,
+      orderUser: transaction.order && transaction.order.user
+        ? String(transaction.order.user)
+        : null,
+      orderStatus: transaction.order ? transaction.order.paymentStatus : null,
+      orderEmail: transaction.order ? transaction.order.userInfo.email : null,
+    });
+
     if (transaction.paymentStatus === "Paid") {
       await Order.updateOne(
         { _id: transaction.order._id, paymentStatus: { $ne: "Paid" } },
@@ -123,6 +145,14 @@ router.get("/verify/:reference", async (req, res) => {
     const paystackResponse = await verifyPayment(reference);
     const paymentData = paystackResponse && paystackResponse.data;
     const expectedAmount = Math.round(transaction.amount * 100);
+
+    console.log("[TRANSACTION][VERIFY] paystack:", {
+      reference,
+      status: paymentData && paymentData.status,
+      amount: paymentData && paymentData.amount,
+      expectedAmount,
+      currency: paymentData && paymentData.currency,
+    });
 
     if (
       !paymentData ||
@@ -203,6 +233,14 @@ router.get("/verify/:reference", async (req, res) => {
     order.status = "Completed";
     order.paymentReference = reference;
     order.paidAt = paidTransaction.paidAt;
+
+    console.log("[TRANSACTION][VERIFY] paid order:", {
+      orderId: String(order._id),
+      user: order.user ? String(order.user) : null,
+      paymentStatus: order.paymentStatus,
+      status: order.status,
+      reference,
+    });
 
     if (orderUpdate.modifiedCount) {
       for (const item of order.items) {

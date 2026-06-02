@@ -73,6 +73,20 @@ exports.ensureOrderBooksInLibrary = async ({ order, transaction }) => {
     throw new Error("Order and transaction are required for library persistence");
   }
 
+  const orderUserId = order.user || order.userId;
+
+  console.log("[LIBRARY][ENSURE] input:", {
+    orderId: order._id ? String(order._id) : null,
+    orderUser: order.user ? String(order.user) : null,
+    orderUserId: order.userId ? String(order.userId) : null,
+    resolvedUserId: orderUserId ? String(orderUserId) : null,
+    orderPaymentStatus: order.paymentStatus,
+    transactionId: transaction._id ? String(transaction._id) : null,
+    transactionReference: transaction.reference,
+    transactionPaymentStatus: transaction.paymentStatus,
+    itemCount: Array.isArray(order.items) ? order.items.length : 0,
+  });
+
   if (order.paymentStatus !== "Paid" || transaction.paymentStatus !== "Paid") {
     throw new Error("Cannot persist library for unpaid order or transaction");
   }
@@ -109,7 +123,7 @@ exports.ensureOrderBooksInLibrary = async ({ order, transaction }) => {
 
     const added = await pushLibraryBook({
       email,
-      userId: order.user,
+      userId: orderUserId,
       entry,
     });
 
@@ -120,10 +134,27 @@ exports.ensureOrderBooksInLibrary = async ({ order, transaction }) => {
     });
   }
 
-  return {
+  const summary = {
     email,
+    userId: orderUserId ? String(orderUserId) : null,
     attempted: results.length,
     added: results.filter((result) => result.added).length,
     results,
   };
+
+  const savedLibrary = await Library.findOne({
+    email,
+    schemaVersion: 2,
+  }).select("_id userId email schemaVersion books");
+
+  console.log("[LIBRARY][ENSURE] output:", {
+    ...summary,
+    libraryId: savedLibrary ? String(savedLibrary._id) : null,
+    savedUserId:
+      savedLibrary && savedLibrary.userId ? String(savedLibrary.userId) : null,
+    schemaVersion: savedLibrary ? savedLibrary.schemaVersion : null,
+    bookCount: savedLibrary ? savedLibrary.books.length : 0,
+  });
+
+  return summary;
 };

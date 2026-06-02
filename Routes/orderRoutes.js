@@ -3,14 +3,15 @@ const router = express.Router();
 const Order = require("../Models/BooksOrdersModel");
 const Book = require("../Models/BooksModel");
 const { adminProtect } = require("../middleware/authAdmin");
+const { protect } = require("../middleware/auth");
 
 /**
  * -----------------------------------
  * POST /api/v1/orders
- * Guest checkout (NO AUTH REQUIRED)
+ * Authenticated checkout
  * -----------------------------------
  */
-router.post("/", async (req, res) => {
+router.post("/", protect, async (req, res) => {
   try {
     const { items, userInfo } = req.body;
 
@@ -68,7 +69,16 @@ router.post("/", async (req, res) => {
         ...userInfo,
         email: userInfo.email.toLowerCase().trim(),
       },
+      user: req.user._id,
       totalAmount,
+    });
+
+    console.log("[ORDER][CREATE] created:", {
+      orderId: String(order._id),
+      user: order.user ? String(order.user) : null,
+      email: order.userInfo.email,
+      itemCount: order.items.length,
+      totalAmount: order.totalAmount,
     });
 
     return res.status(201).json({

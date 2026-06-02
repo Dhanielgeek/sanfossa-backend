@@ -8,15 +8,16 @@ const {
   getLibraryByUserId,
 } = require("../Controllers/libraryController");
 
-const { protect, authorize } = require("../middleware/auth");
+const { protect } = require("../middleware/auth");
+const { adminProtect } = require("../middleware/authAdmin");
 
 // 👤 current user library
 router.get("/me", protect, getMyLibrary);
 
 // 🔐 admin: all libraries
-router.get("/all", protect, authorize("admin"), getAllLibrary);
+router.get("/all", adminProtect, getAllLibrary);
 
 // 🔐 admin: specific user library
-router.get("/:id", protect, authorize("admin"), getLibraryByUserId);
+router.get("/:id", adminProtect, getLibraryByUserId);
 
 module.exports = router;
