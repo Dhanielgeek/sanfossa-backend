@@ -90,3 +90,22 @@ exports.ensureOrderBooksInLibrary = async ({ order }) => {
 
   return library;
 };
+
+exports.getLibraryByUserId = async (req, res) => {
+  try {
+    const library = await Library.findOne({
+      userId: req.params.id,
+      schemaVersion: 2,
+    }).populate("books.bookId");
+
+    return res.status(200).json({
+      success: true,
+      data: library || { books: [] },
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+};
