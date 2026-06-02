@@ -141,6 +141,16 @@ LibrarySchema.index(
     partialFilterExpression: { schemaVersion: 2 },
   },
 );
+LibrarySchema.index(
+  { userId: 1, schemaVersion: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      schemaVersion: 2,
+      userId: { $exists: true },
+    },
+  },
+);
 LibrarySchema.index({ email: 1, "books.bookId": 1 });
 LibrarySchema.index({ "books.paymentReference": 1 });
 

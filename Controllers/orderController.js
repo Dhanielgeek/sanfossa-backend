@@ -55,8 +55,16 @@ exports.createOrder = async (req, res) => {
         ...userInfo,
         email: userInfo.email.toLowerCase().trim(),
       },
-      userId: req.user._id,
+      user: req.user._id,
       totalAmount,
+    });
+
+    console.log("[ORDER][CREATE] created:", {
+      orderId: String(order._id),
+      user: order.user ? String(order.user) : null,
+      email: order.userInfo.email,
+      itemCount: order.items.length,
+      totalAmount: order.totalAmount,
     });
 
     return res.status(201).json({

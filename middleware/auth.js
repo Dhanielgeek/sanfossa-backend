@@ -28,6 +28,11 @@ exports.protect = async (req, res, next) => {
     // Verify token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
+    console.log("[AUTH][USER] decoded token:", {
+      id: decoded.id,
+      type: decoded.type || "user",
+    });
+
     if (decoded.type && decoded.type !== "user") {
       return res.status(403).json({
         success: false,
@@ -45,8 +50,15 @@ exports.protect = async (req, res, next) => {
       });
     }
 
+    console.log("[AUTH][USER] req.user:", {
+      id: String(req.user._id),
+      email: req.user.email,
+      role: req.user.role,
+    });
+
     next();
   } catch (error) {
+    console.error("[AUTH][USER] token failed:", error.message);
     return res.status(401).json({
       success: false,
       message: "Not authorized, token failed",
