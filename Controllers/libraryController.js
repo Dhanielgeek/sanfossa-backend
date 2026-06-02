@@ -5,33 +5,24 @@ const Library = require("../Models/LibraryModel");
  * GET USER LIBRARY
  * =========================================
  */
-exports.getUserLibrary = async (req, res) => {
+exports.getMyLibrary = async (req, res) => {
   try {
-    const { email } = req.params;
-
-    const normalizedEmail = email.toLowerCase().trim();
-    const currentLibrary = await Library.findOne({
-      email: normalizedEmail,
+    const library = await Library.findOne({
+      userId: req.user._id,
       schemaVersion: 2,
     });
 
-    if (currentLibrary) {
-      return res.status(200).json({
-        success: true,
-        count: currentLibrary.books.length,
-        data: currentLibrary,
+    if (!library) {
+      return res.status(404).json({
+        success: false,
+        message: "Library not found",
       });
     }
 
-    const legacyLibrary = await Library.find({
-      email: normalizedEmail,
-      schemaVersion: { $ne: 2 },
-    }).sort({ createdAt: -1 });
-
     return res.status(200).json({
       success: true,
-      count: legacyLibrary.length,
-      data: legacyLibrary,
+      count: library.books.length,
+      data: library,
     });
   } catch (error) {
     return res.status(500).json({
