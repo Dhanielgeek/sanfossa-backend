@@ -51,6 +51,7 @@ exports.createOrder = async (req, res) => {
 
     const order = await Order.create({
       items: normalizedItems,
+
       userInfo: {
         ...userInfo,
         email: userInfo.email.toLowerCase().trim(),
@@ -87,5 +88,30 @@ exports.createOrder = async (req, res) => {
             ? error.message
             : "Server error while creating order",
       });
+  }
+};
+
+exports.getMyPurchaseHistory = async (req, res) => {
+  try {
+    const email = req.user.email; // assuming auth middleware sets this
+
+    const orders = await Order.find({
+      "userInfo.email": email,
+      paymentStatus: "Paid", // optional filter (recommended)
+    })
+      .populate("items.book")
+      .sort({ createdAt: -1 });
+
+    return res.status(200).json({
+      success: true,
+      count: orders.length,
+      data: orders,
+    });
+  } catch (error) {
+    console.error("GET PURCHASE HISTORY ERROR:", error.message);
+    return res.status(500).json({
+      success: false,
+      error: "Failed to fetch purchase history",
+    });
   }
 };

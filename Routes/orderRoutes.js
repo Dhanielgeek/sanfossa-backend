@@ -4,6 +4,7 @@ const Order = require("../Models/BooksOrdersModel");
 const Book = require("../Models/BooksModel");
 const { adminProtect } = require("../middleware/authAdmin");
 const { protect } = require("../middleware/auth");
+const { getMyPurchaseHistory } = require("../Controllers/orderController");
 
 /**
  * -----------------------------------
@@ -36,7 +37,10 @@ router.post("/", protect, async (req, res) => {
     }
 
     const bookIds = items.map((item) => item.book);
-    const books = await Book.find({ _id: { $in: bookIds }, status: "published" });
+    const books = await Book.find({
+      _id: { $in: bookIds },
+      status: "published",
+    });
     const booksById = new Map(books.map((book) => [String(book._id), book]));
 
     const normalizedItems = items.map((item) => {
@@ -88,13 +92,19 @@ router.post("/", protect, async (req, res) => {
     });
   } catch (error) {
     console.error("CREATE ORDER ERROR:", error);
-    return res.status(error.message.includes("Book") || error.message.includes("quantity") ? 400 : 500).json({
-      success: false,
-      error:
+    return res
+      .status(
         error.message.includes("Book") || error.message.includes("quantity")
-          ? error.message
-          : "Server error while creating order",
-    });
+          ? 400
+          : 500,
+      )
+      .json({
+        success: false,
+        error:
+          error.message.includes("Book") || error.message.includes("quantity")
+            ? error.message
+            : "Server error while creating order",
+      });
   }
 });
 
@@ -151,5 +161,13 @@ router.delete("/delete-all", adminProtect, async (req, res) => {
     });
   }
 });
+
+/**
+ * -----------------------------------
+ * GET /api/orders/purchase-history
+ * USER – GET ALL orders
+ * -----------------------------------
+ */
+router.get("/me", protect, getMyPurchaseHistory);
 
 module.exports = router;
