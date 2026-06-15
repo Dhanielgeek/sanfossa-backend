@@ -34,4 +34,6 @@ reflectionNoteSchema.pre("save", function (next) {
   next();
 });
 
-module.exports = mongoose.model("ReflectionNote", reflectionNoteSchema);
+module.exports =
+  mongoose.models.ReflectionNote ||
+  mongoose.model("ReflectionNote", reflectionNoteSchema);

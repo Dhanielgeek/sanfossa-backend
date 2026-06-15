@@ -1,5 +1,5 @@
 const ContinuityProduct = require("../Models/continuityProductSchema");
-const ReflectionNote = require("../models/ReflectionNote");
+const ReflectionNote = require("../Models/ReflectionNote");
 const Bookmark = require("../models/Bookmark");
 const ReadingProgress = require("../models/ReadingProgress");
 
