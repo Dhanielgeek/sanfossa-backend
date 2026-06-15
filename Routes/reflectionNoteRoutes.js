@@ -8,7 +8,7 @@ const {
   getNote,
   updateNote,
   deleteNote,
-} = require("../controllers/reflectionNoteController");
+} = require("../Controllers/reflectionNoteController");
 
 router.route("/").post(createNote).get(getNotes);
 
