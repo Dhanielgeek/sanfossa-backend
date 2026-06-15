@@ -1,7 +1,7 @@
 const ContinuityProduct = require("../Models/continuityProductSchema");
 const ReflectionNote = require("../Models/ReflectionNote");
-const Bookmark = require("../models/Bookmark");
-const ReadingProgress = require("../models/ReadingProgress");
+const Bookmark = require("../Models/Bookmark");
+const ReadingProgress = require("../Models/ReadingProgress");
 
 exports.getDashboardOverview = async (req, res) => {
   try {
