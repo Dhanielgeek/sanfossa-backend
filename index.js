@@ -70,6 +70,8 @@ const waitlistRoutes = require("./Routes/waitlistRoutes");
 const libraryRoutes = require("./Routes/libraryRoutes");
 const mediaRoutes = require("./Routes/mediaRoutes");
 const { sendEmail } = require("./services/emailservice");
+const userdashboardRoutes = require("./Routes/userDashboardRoutes");
+const reflectionNoteRoutes = require("./Routes/reflectionNoteRoutes");
 
 app.use("/api/auth", authRoutes);
 app.use("/api/blog", blogRoutes);
@@ -97,6 +99,8 @@ console.log("🔥 Library route import:", libraryRoutes);
 //Paystack Routes
 
 app.use("/api/transactions", transactionRoutes);
+
+app.use("/api/dashboard", userdashboardRoutes);
 
 // 6. Health
 app.get("/", (req, res) => {
