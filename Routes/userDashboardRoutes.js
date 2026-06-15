@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 
-const { getDashboardOverview } = require("../controllers/dashboardController");
+const { getDashboardOverview } = require("../Controllers/dashboardcontroller");
 
 router.get("/overview", getDashboardOverview);
 
