@@ -1,4 +1,4 @@
-const ReflectionNote = require("../models/ReflectionNote");
+const ReflectionNote = require("../Models/ReflectionNote");
 
 // Create Note
 exports.createNote = async (req, res) => {
