@@ -80,7 +80,7 @@ app.use("/api/order", orderRoutes);
 app.use("/api/contact", contactRoutes);
 app.use("/api/library", libraryRoutes);
 app.use("/api", subscriberGroupRoutes);
-
+app.use("/api/reflection-notes", reflectionNoteRoutes);
 app.use("/api/newsletter", newsletterRoutes);
 app.use("/api/waitlist", waitlistRoutes);
 
