@@ -1,5 +1,4 @@
 const express = require("express");
-
 const router = express.Router();
 
 const {
@@ -10,8 +9,19 @@ const {
   deleteNote,
 } = require("../Controllers/reflectionNoteController");
 
-router.route("/").post(createNote).get(getNotes);
+// Create note
+router.post("/", createNote);
 
-router.route("/:id").get(getNote).put(updateNote).delete(deleteNote);
+// Get all notes
+router.get("/", getNotes);
+
+// Get single note
+router.get("/:id", getNote);
+
+// Update note
+router.put("/:id", updateNote);
+
+// Delete note
+router.delete("/:id", deleteNote);
 
 module.exports = router;
