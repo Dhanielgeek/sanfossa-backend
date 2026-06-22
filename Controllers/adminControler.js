@@ -18,7 +18,7 @@ exports.registerAdmin = async (req, res) => {
   if (!fullname || !email || !password) {
     return res.status(400).json({
       success: false,
-      error: "All fields are required",
+      error: "All fields are required VERIFIED",
     });
   }
 
