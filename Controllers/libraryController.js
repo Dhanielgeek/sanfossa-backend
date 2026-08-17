@@ -169,3 +169,90 @@ exports.getLibraryByUserId = async (req, res) => {
     });
   }
 };
+
+
+exports.updateReadingProgress = async (req, res) => {
+  try {
+    const userId = req.user && req.user._id;
+    const { bookId } = req.params;
+
+    const currentPage = Number(req.body.currentPage);
+    const totalPages = Number(req.body.totalPages);
+
+    if (!bookId) {
+      return res.status(400).json({
+        success: false,
+        message: "Book ID is required",
+      });
+    }
+
+    if (
+      !Number.isFinite(currentPage) ||
+      !Number.isFinite(totalPages) ||
+      currentPage < 1 ||
+      totalPages < 1
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid reading progress",
+      });
+    }
+
+    const library = await Library.findOne({
+      userId,
+      schemaVersion: 2,
+    });
+
+    if (!library) {
+      return res.status(404).json({
+        success: false,
+        message: "Library not found",
+      });
+    }
+
+    const libraryBook = library.books.find(
+      (book) => String(book.bookId) === String(bookId),
+    );
+
+    if (!libraryBook) {
+      return res.status(404).json({
+        success: false,
+        message: "Book not found in your library",
+      });
+    }
+
+    const safeCurrentPage = Math.min(currentPage, totalPages);
+
+    const progressPercentage = Math.min(
+      100,
+      Math.round((safeCurrentPage / totalPages) * 100),
+    );
+
+    libraryBook.currentPage = safeCurrentPage;
+    libraryBook.totalPages = totalPages;
+    libraryBook.progressPercentage = progressPercentage;
+    libraryBook.lastReadAt = new Date();
+
+    await library.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Reading progress saved",
+      data: {
+        bookId: libraryBook.bookId,
+        currentPage: libraryBook.currentPage,
+        totalPages: libraryBook.totalPages,
+        progressPercentage: libraryBook.progressPercentage,
+        lastReadAt: libraryBook.lastReadAt,
+      },
+    });
+  } catch (error) {
+    console.error("[LIBRARY][PROGRESS] Error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Unable to save reading progress",
+      error: error.message,
+    });
+  }
+};
