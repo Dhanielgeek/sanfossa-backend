@@ -60,6 +60,30 @@ const LibraryBookSchema = new mongoose.Schema(
       type: BookSnapshotSchema,
       required: true,
     },
+
+    currentPage: {
+  type: Number,
+  default: 1,
+  min: 1,
+},
+
+totalPages: {
+  type: Number,
+  default: 0,
+  min: 0,
+},
+
+progressPercentage: {
+  type: Number,
+  default: 0,
+  min: 0,
+  max: 100,
+},
+
+lastReadAt: {
+  type: Date,
+  default: null,
+},
   },
   { _id: false },
 );
