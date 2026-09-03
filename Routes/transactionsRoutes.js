@@ -180,23 +180,56 @@ router.get("/verify/:reference", async (req, res) => {
       currency: paymentData && paymentData.currency,
     });
 
-    if (
-      !paymentData ||
-      paymentData.status !== "success" ||
-      paymentData.reference !== reference ||
-      paymentData.amount !== expectedAmount ||
-      paymentData.currency !== "NGN"
-    ) {
-      transaction.paymentStatus = "Failed";
-      transaction.gatewayResponse = paymentData || paystackResponse;
-      await transaction.save();
-      await sendPaymentFailureEmail(transaction.order, transaction);
+   const verificationChecks = {
+  hasPaymentData: !!paymentData,
+  paystackStatus: paymentData?.status,
+  expectedStatus: "success",
 
-      return res.status(400).json({
-        success: false,
-        error: "Payment verification mismatch or payment not successful",
-      });
-    }
+  paystackReference: paymentData?.reference,
+  expectedReference: reference,
+
+  paystackAmount: paymentData?.amount,
+  expectedAmount,
+
+  paystackCurrency: paymentData?.currency,
+  expectedCurrency: "NGN",
+};
+
+console.log("[TRANSACTION][VERIFY][CHECKS]", verificationChecks);
+
+const isValidPayment =
+  paymentData &&
+  paymentData.status === "success" &&
+  String(paymentData.reference) === String(reference) &&
+  Number(paymentData.amount) === Number(expectedAmount) &&
+  String(paymentData.currency).toUpperCase() === "NGN";
+
+if (!isValidPayment) {
+  console.error(
+    "[TRANSACTION][VERIFY][MISMATCH]",
+    verificationChecks
+  );
+
+  transaction.paymentStatus = "Failed";
+  transaction.gatewayResponse = paymentData || paystackResponse;
+
+  await transaction.save();
+
+  await sendPaymentFailureEmail(transaction.order, transaction);
+
+  return res.status(400).json({
+    success: false,
+    error: "Payment verification mismatch or payment not successful",
+    details: {
+      paystackStatus: paymentData?.status,
+      paystackReference: paymentData?.reference,
+      expectedReference: reference,
+      paystackAmount: paymentData?.amount,
+      expectedAmount,
+      paystackCurrency: paymentData?.currency,
+    },
+  });
+}
 
     const paidAt = new Date();
     const paidTransaction = await Transaction.findOneAndUpdate(
