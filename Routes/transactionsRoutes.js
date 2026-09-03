@@ -5,11 +5,36 @@ const crypto = require("crypto");
 const Transaction = require("../Models/TransactionModel");
 const Order = require("../Models/BooksOrdersModel");
 const Book = require("../Models/BooksModel");
+const { sendTemplate, platformUrl } = require("../services/emailservice");
 const { ensureOrderBooksInLibrary } = require("../services/libraryService");
 const {
   initializePayment,
   verifyPayment,
 } = require("../services/paystackservice");
+
+const firstName = (name) => String(name || "there").trim().split(/\s+/)[0] || "there";
+const formatNaira = (amount) => `NGN ${Number(amount || 0).toLocaleString("en-NG", { minimumFractionDigits: 2 })}`;
+const productsFor = async (order) => {
+  const books = await Book.find({ _id: { $in: order.items.map((item) => item.book) } }).select("title").lean();
+  const names = new Map(books.map((book) => [String(book._id), book.title]));
+  return order.items.map((item) => names.get(String(item.book)) || "SankofaSeek material").join(", ");
+};
+async function claimAndSend(transaction, event, kind, variables) {
+  const claimed = await Transaction.updateOne({ _id: transaction._id, [`emailEvents.${event}`]: { $exists: false } }, { $set: { [`emailEvents.${event}`]: new Date() } });
+  if (!claimed.modifiedCount) return;
+  try { await sendTemplate(kind, variables); } catch { console.error(`[EMAIL][${kind}] delivery failed for transaction ${transaction._id}`); }
+}
+async function sendPaymentEmails(order, transaction) {
+  const libraryLink = `${platformUrl().replace(/\/$/, "")}/library`;
+  const productName = await productsFor(order);
+  const common = { to: order.userInfo.email, firstName: firstName(order.userInfo.name), productName, orderNumber: String(order._id), purchaseDate: new Date(transaction.paidAt || Date.now()).toLocaleDateString("en-GB"), amount: formatNaira(order.totalAmount), libraryLink };
+  await claimAndSend(transaction, "purchaseConfirmation", "purchaseConfirmation", common);
+  await claimAndSend(transaction, "libraryAccess", "libraryAccess", common);
+}
+async function sendPaymentFailureEmail(order, transaction) {
+  const productName = await productsFor(order);
+  await claimAndSend(transaction, "paymentFailed", "paymentFailed", { to: order.userInfo.email, firstName: firstName(order.userInfo.name), productName, orderNumber: String(order._id), amount: formatNaira(order.totalAmount), paymentDate: new Date().toLocaleDateString("en-GB"), paymentLink: `${platformUrl().replace(/\/$/, "")}/checkout?orderId=${encodeURIComponent(String(order._id))}` });
+}
 
 /**
  * POST /api/transactions/initialize
@@ -134,6 +159,7 @@ router.get("/verify/:reference", async (req, res) => {
         order: transaction.order,
         transaction,
       });
+      await sendPaymentEmails(transaction.order, transaction);
 
       return res.status(200).json({
         success: true,
@@ -164,6 +190,7 @@ router.get("/verify/:reference", async (req, res) => {
       transaction.paymentStatus = "Failed";
       transaction.gatewayResponse = paymentData || paystackResponse;
       await transaction.save();
+      await sendPaymentFailureEmail(transaction.order, transaction);
 
       return res.status(400).json({
         success: false,
@@ -208,6 +235,7 @@ router.get("/verify/:reference", async (req, res) => {
         order: currentTransaction.order,
         transaction: currentTransaction,
       });
+      await sendPaymentEmails(currentTransaction.order, currentTransaction);
 
       return res.status(200).json({
         success: true,
@@ -254,6 +282,7 @@ router.get("/verify/:reference", async (req, res) => {
       order,
       transaction: paidTransaction,
     });
+    await sendPaymentEmails(order, paidTransaction);
 
     return res.status(200).json({
       success: true,

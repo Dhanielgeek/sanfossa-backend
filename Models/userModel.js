@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs"); // Needed for password hashing
+const crypto = require("crypto");
 
 const UserSchema = new mongoose.Schema({
   // --- Authentication Fields ---
@@ -43,6 +44,21 @@ const UserSchema = new mongoose.Schema({
   // --- Security & Utility Fields (For forgot password functionality) ---
   resetPasswordToken: String,
   resetPasswordExpire: Date,
+isEmailVerified: {
+  type: Boolean,
+  default: false,
+},
+
+emailVerificationOtp: {
+  type: String,
+  select: false,
+},
+
+emailVerificationOtpExpire: {
+  type: Date,
+  select: false,
+},
+  emailEvents: { type: mongoose.Schema.Types.Mixed, default: {} },
 
   // --- Timestamps ---
   createdAt: {
@@ -52,10 +68,11 @@ const UserSchema = new mongoose.Schema({
 });
 
 // [Mongoose Middleware] Encrypt password using bcrypt before saving the user
-UserSchema.pre("save", async function (next) {
+UserSchema.pre("save", async function () {
   if (!this.isModified("password")) {
-    return next();
+    return;
   }
+
   const salt = await bcrypt.genSalt(10);
   this.password = await bcrypt.hash(this.password, salt);
 });
@@ -68,6 +85,13 @@ UserSchema.methods.matchPassword = async function (enteredPassword) {
     .select("+password");
   if (!user) return false;
   return await bcrypt.compare(enteredPassword, user.password);
+};
+
+UserSchema.methods.createHashedToken = function (field, expiryField, minutes) {
+  const token = crypto.randomBytes(32).toString("hex");
+  this[field] = crypto.createHash("sha256").update(token).digest("hex");
+  this[expiryField] = new Date(Date.now() + minutes * 60 * 1000);
+  return token;
 };
 
 module.exports = mongoose.model("User", UserSchema);

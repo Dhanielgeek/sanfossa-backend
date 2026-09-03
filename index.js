@@ -126,7 +126,8 @@ app.listen(PORT, () =>
   ),
 );
 
-//9. Email Service
+// Development-only manual mail smoke test. Disabled unless explicitly enabled.
+if (process.env.ENABLE_EMAIL_TEST_ROUTE === "true") {
 
 app.get("/test-email", async (req, res) => {
   try {
@@ -141,3 +142,4 @@ app.get("/test-email", async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+}

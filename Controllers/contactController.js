@@ -1,6 +1,6 @@
 const Contact = require("../Models/contactModel");
 const User = require("../Models/userModel"); // Needed to fetch user details if logged in
-// NOTE: You would typically integrate nodemailer here to send an email notification
+const { sendTemplate } = require("../services/emailservice");
 
 // @desc    Handle contact form submission
 // @route   POST /api/v1/contact
@@ -16,10 +16,10 @@ exports.submitContactForm = async (req, res, next) => {
 
       // OPTIONAL: If front end didn't send name/email, fetch it from DB
       // This is good if you want to ensure the DB-stored name/email is used.
-      const user = await User.findById(req.user.id).select("name email");
+      const user = await User.findById(req.user.id).select("firstName lastName email");
       if (user) {
         // Use logged-in user's data to override form input (if needed)
-        submissionData.fullName = user.name;
+        submissionData.fullName = `${user.firstName} ${user.lastName}`.trim();
         submissionData.email = user.email;
       }
     }
@@ -37,10 +37,19 @@ exports.submitContactForm = async (req, res, next) => {
     }
 
     // --- 3. Save the Contact Message to the database ---
-    const contactMessage = await Contact.create(submissionData);
+    const contactMessage = await Contact.create({
+      ...submissionData,
+      ticketNumber: `SS-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
+    });
 
-    // --- 4. Send Email Notification (Placeholder) ---
-    // await sendContactNotificationEmail(contactMessage);
+    // Persist first; email failure never creates a duplicate support ticket.
+    sendTemplate("supportConfirmation", {
+      to: contactMessage.email,
+      firstName: contactMessage.fullName.split(/\s+/)[0],
+      messageSubject: req.body.subject || "Support request",
+      ticketNumber: contactMessage.ticketNumber,
+      submissionDate: contactMessage.submittedAt.toLocaleDateString("en-GB"),
+    }).then(() => Contact.updateOne({ _id: contactMessage._id }, { $set: { "emailEvents.supportConfirmation": new Date() } })).catch(() => console.error("[EMAIL][supportConfirmation] delivery failed"));
 
     res.status(201).json({
       success: true,

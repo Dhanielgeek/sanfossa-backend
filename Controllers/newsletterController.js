@@ -1,7 +1,7 @@
 // controllers/newsletterController.js
 const Newsletter = require("../Models/Newsletter");
 const Subscriber = require("../Models/Subscriber");
-const { sendEmail } = require("../services/emailservice");
+const { sendEmail, sendTemplate } = require("../services/emailservice");
 
 // --- helpers ---
 const isNonEmptyString = (s) => typeof s === "string" && s.trim().length > 0;
@@ -63,25 +63,17 @@ async function processNewsletterSend(newsletter, controls = {}) {
     dryRun = false,
     customFilter = {},
   } = controls;
+  const effectiveBatchSize = Math.max(1, batchSize);
 
-  const filter = { isActive: true, ...customFilter };
+  // Consent cannot be bypassed by caller-supplied filters.
+  const filter = { ...customFilter, isActive: true };
   if (onlyVerified) filter.isVerified = true;
 
-  const subscribers = await Subscriber.find(filter).select("email").lean();
+  const subscribers = await Subscriber.find(filter).select("email firstName").lean();
 
-  const normalized = Array.from(
-    new Set(
-      subscribers
-        .map((s) =>
-          String(s.email || "")
-            .trim()
-            .toLowerCase()
-        )
-        .filter((e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)),
-    ),
-  );
+  const recipients = Array.from(new Map(subscribers.map((s) => [String(s.email || "").trim().toLowerCase(), s])).values()).filter((s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(s.email || "")));
 
-  if (normalized.length === 0) {
+  if (recipients.length === 0) {
     return {
       ok: false,
       statusCode: 400,
@@ -90,32 +82,28 @@ async function processNewsletterSend(newsletter, controls = {}) {
   }
 
   console.info(
-    `[NEWSLETTER][SEND][START] id=${newsletter._id}, subject="${newsletter.subject}", recipients=${normalized.length}, dryRun=${dryRun}`,
+    `[NEWSLETTER][SEND][START] id=${newsletter._id}, subject="${newsletter.subject}", recipients=${recipients.length}, dryRun=${dryRun}`,
   );
 
   let sent = 0;
   let failed = 0;
   const perRecipientResults = [];
 
-  for (let i = 0; i < normalized.length; i += batchSize) {
-    const batch = normalized.slice(i, i + batchSize);
+  for (let i = 0; i < recipients.length; i += effectiveBatchSize) {
+    const batch = recipients.slice(i, i + effectiveBatchSize);
 
     const batchResults = await runWithConcurrency(
       batch,
-      async (email) => {
+      async (subscriber) => {
+        const email = subscriber.email;
         if (dryRun) {
           return { email, success: true, dryRun: true };
         }
 
         try {
-          const info = await sendWithRetry(
-            {
-              to: email,
-              subject: newsletter.subject,
-              html: newsletter.content,
-            },
-            { retries },
-          );
+          const info = newsletter.release?.productName
+            ? await sendTemplate("newRelease", { to: email, firstName: subscriber.firstName || "there", ...newsletter.release })
+            : await sendWithRetry({ to: email, subject: newsletter.subject, html: newsletter.content }, { retries });
 
           return { email, success: true, messageId: info?.messageId };
         } catch (err) {
@@ -135,7 +123,7 @@ async function processNewsletterSend(newsletter, controls = {}) {
       else failed++;
     });
 
-    if (i + batchSize < normalized.length && batchDelayMs > 0) {
+    if (i + effectiveBatchSize < recipients.length && batchDelayMs > 0) {
       await sleep(batchDelayMs);
     }
   }
@@ -145,7 +133,7 @@ async function processNewsletterSend(newsletter, controls = {}) {
   newsletter.sentAt = !dryRun ? new Date() : undefined;
   newsletter.scheduledAt = undefined;
   newsletter.metrics = {
-    totalRecipients: normalized.length,
+    totalRecipients: recipients.length,
     sent,
     failed,
     dryRun,
@@ -168,7 +156,7 @@ async function processNewsletterSend(newsletter, controls = {}) {
       summary: {
         newsletterId: String(newsletter._id),
         subject: newsletter.subject,
-        total: normalized.length,
+        total: recipients.length,
         sent,
         failed,
         status: newsletter.status,
@@ -184,22 +172,26 @@ async function processNewsletterSend(newsletter, controls = {}) {
 // @access  Private (Admin)
 exports.createNewsletter = async (req, res) => {
   try {
-    const { subject, content } = req.body;
+    const { subject, content, release } = req.body;
 
     if (!isNonEmptyString(subject)) {
       return res
         .status(400)
         .json({ success: false, message: "Subject is required." });
     }
-    if (!isNonEmptyString(content)) {
+    if (!isNonEmptyString(content) && !release) {
       return res
         .status(400)
         .json({ success: false, message: "HTML content is required." });
     }
+    if (release && ![release.productName, release.shortDescription, release.topicOrTheme, release.productLink].every(isNonEmptyString)) {
+      return res.status(400).json({ success: false, message: "release requires productName, shortDescription, topicOrTheme, and productLink." });
+    }
 
     const newsletter = await Newsletter.create({
-      subject: subject.trim(),
-      content: content.trim(),
+      subject: release ? "Something new has arrived at SankofaSeek" : subject.trim(),
+      content: isNonEmptyString(content) ? content.trim() : "New release campaign",
+      ...(release ? { release } : {}),
       status: "draft",
     });
 

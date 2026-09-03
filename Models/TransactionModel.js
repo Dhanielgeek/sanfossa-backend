@@ -35,6 +35,7 @@ const TransactionSchema = new mongoose.Schema(
     gatewayResponse: Object,
 
     paidAt: Date,
+    emailEvents: { type: mongoose.Schema.Types.Mixed, default: {} },
   },
   { timestamps: true },
 );
