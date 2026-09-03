@@ -5,6 +5,7 @@ const {
   updateSubscription,
   unsubscribe,
   getSubscribers,
+  deleteSubscriber,
   verify, // optional for double opt-in
 } = require("../Controllers/subscribeController");
 
@@ -17,10 +18,20 @@ router.patch("/subscribe", updateSubscription);
 // GET /api/v1/subscribers/all (admin only)
 router.get("/all", adminProtect, getSubscribers);
 
+// DELETE /api/v1/subscribers/:id (admin only)
+router.delete(
+  "/:id",
+  adminProtect,
+deleteSubscriber
+);
+
 // POST /api/v1/subscribers/unsubscribe
 router.post("/unsubscribe", unsubscribe);
 
 // GET /// GET /api/v1/subscribers/verify?email=...&token=... (optional)
 router.get("/verify", verify);
+
+
+
 
 module.exports = router;
