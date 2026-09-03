@@ -1,6 +1,8 @@
+
 const Library = require("../Models/LibraryModel");
 
-const normalizeEmail = (email) => String(email || "").trim().toLowerCase();
+const normalizeEmail = (email) =>
+  String(email || "").trim().toLowerCase();
 
 /**
  * =========================================
@@ -25,7 +27,8 @@ exports.getMyLibrary = async (req, res) => {
     console.log("[LIBRARY][ME] userId query result:", {
       found: Boolean(library),
       libraryId: library ? String(library._id) : null,
-      libraryUserId: library && library.userId ? String(library.userId) : null,
+      libraryUserId:
+        library && library.userId ? String(library.userId) : null,
       bookCount: library ? library.books.length : 0,
     });
 
@@ -45,7 +48,9 @@ exports.getMyLibrary = async (req, res) => {
 
       if (library && !library.userId && userId) {
         library.userId = userId;
+
         await library.save();
+
         console.log("[LIBRARY][ME] backfilled missing userId:", {
           libraryId: String(library._id),
           userId: String(userId),
@@ -53,10 +58,17 @@ exports.getMyLibrary = async (req, res) => {
       }
     }
 
+    // No library yet = return an empty library
     if (!library) {
-      return res.status(404).json({
-        success: false,
-        message: "Library not found",
+      return res.status(200).json({
+        success: true,
+        count: 0,
+        data: {
+          userId,
+          email,
+          schemaVersion: 2,
+          books: [],
+        },
       });
     }
 
@@ -66,6 +78,8 @@ exports.getMyLibrary = async (req, res) => {
       data: library,
     });
   } catch (error) {
+    console.error("[LIBRARY][ME] Error:", error);
+
     return res.status(500).json({
       success: false,
       error: error.message,
@@ -80,7 +94,9 @@ exports.getMyLibrary = async (req, res) => {
  */
 exports.getAllLibrary = async (req, res) => {
   try {
-    const library = await Library.find({ schemaVersion: 2 }).sort({
+    const library = await Library.find({
+      schemaVersion: 2,
+    }).sort({
       createdAt: -1,
     });
 
@@ -102,8 +118,9 @@ exports.getAllLibrary = async (req, res) => {
   }
 };
 
-/** * =========================================
- * Ensure ORDER BOOKS IN LIBRARY
+/**
+ * =========================================
+ * ENSURE ORDER BOOKS IN LIBRARY
  * =========================================
  */
 exports.ensureOrderBooksInLibrary = async ({ order }) => {
@@ -128,7 +145,9 @@ exports.ensureOrderBooksInLibrary = async ({ order }) => {
   }
 
   // Add books (avoid duplicates)
-  const existingBookIds = new Set(library.books.map((b) => String(b.bookId)));
+  const existingBookIds = new Set(
+    library.books.map((book) => String(book.bookId))
+  );
 
   order.items.forEach((item) => {
     if (!existingBookIds.has(String(item.book))) {
@@ -151,6 +170,11 @@ exports.ensureOrderBooksInLibrary = async ({ order }) => {
   return library;
 };
 
+/**
+ * =========================================
+ * GET LIBRARY BY USER ID
+ * =========================================
+ */
 exports.getLibraryByUserId = async (req, res) => {
   try {
     const library = await Library.findOne({
@@ -158,9 +182,15 @@ exports.getLibraryByUserId = async (req, res) => {
       schemaVersion: 2,
     }).populate("books.bookId");
 
+    // No library = return empty books
     return res.status(200).json({
       success: true,
-      data: library || { books: [] },
+      count: library ? library.books.length : 0,
+      data: library || {
+        userId: req.params.id,
+        schemaVersion: 2,
+        books: [],
+      },
     });
   } catch (error) {
     return res.status(500).json({
@@ -170,7 +200,11 @@ exports.getLibraryByUserId = async (req, res) => {
   }
 };
 
-
+/**
+ * =========================================
+ * UPDATE READING PROGRESS
+ * =========================================
+ */
 exports.updateReadingProgress = async (req, res) => {
   try {
     const userId = req.user && req.user._id;
@@ -203,6 +237,7 @@ exports.updateReadingProgress = async (req, res) => {
       schemaVersion: 2,
     });
 
+    // Reading progress requires an actual library
     if (!library) {
       return res.status(404).json({
         success: false,
@@ -211,7 +246,7 @@ exports.updateReadingProgress = async (req, res) => {
     }
 
     const libraryBook = library.books.find(
-      (book) => String(book.bookId) === String(bookId),
+      (book) => String(book.bookId) === String(bookId)
     );
 
     if (!libraryBook) {
@@ -225,7 +260,7 @@ exports.updateReadingProgress = async (req, res) => {
 
     const progressPercentage = Math.min(
       100,
-      Math.round((safeCurrentPage / totalPages) * 100),
+      Math.round((safeCurrentPage / totalPages) * 100)
     );
 
     libraryBook.currentPage = safeCurrentPage;
@@ -256,3 +291,4 @@ exports.updateReadingProgress = async (req, res) => {
     });
   }
 };
+
