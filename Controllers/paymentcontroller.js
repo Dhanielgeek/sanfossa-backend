@@ -1,7 +1,6 @@
 const Order = require("../Models/BooksOrdersModel");
 const Transaction = require("../Models/TransactionModel");
 const { verifyPayment } = require("../services/paystackservice");
-const { sendEmail } = require("../services/emailservice");
 const { ensureOrderBooksInLibrary } = require("../services/libraryService");
 
 /**
@@ -179,18 +178,6 @@ exports.verifyPaystackPayment = async (req, res) => {
     const library = await ensureOrderBooksInLibrary({
       order,
       transaction: paidTransaction,
-    });
-
-    await sendEmail({
-      to: order.userInfo.email,
-      subject: "Your Purchase Receipt",
-      html: `
-        <h2>Payment Receipt</h2>
-        <p>Hi ${order.userInfo.name},</p>
-        <p>Your payment was successful.</p>
-        <p><strong>Total:</strong> NGN ${order.totalAmount}</p>
-        <p>Thank you for your purchase.</p>
-      `,
     });
 
     return res.status(200).json({

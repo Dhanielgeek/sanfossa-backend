@@ -32,9 +32,11 @@ const ContactSchema = new mongoose.Schema({
         default: false // Tracks if the submission came from a logged-in user
     },
     submittedAt: {
-        type: Date,
-        default: Date.now
-    }
+      type: Date,
+      default: Date.now
+    },
+    ticketNumber: { type: String, unique: true, sparse: true, index: true },
+    emailEvents: { type: mongoose.Schema.Types.Mixed, default: {} }
 });
 
 module.exports = mongoose.model('Contact', ContactSchema);

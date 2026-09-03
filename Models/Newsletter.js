@@ -5,6 +5,12 @@ const NewsletterSchema = new mongoose.Schema(
   {
     subject: { type: String, required: true },
     content: { type: String, required: true }, // HTML content
+    release: {
+      productName: String,
+      shortDescription: String,
+      topicOrTheme: String,
+      productLink: String,
+    },
     status: {
       type: String,
       enum: ["draft", "scheduled", "sent", "partial", "dry-sent"],
