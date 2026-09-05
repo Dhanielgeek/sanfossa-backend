@@ -110,8 +110,19 @@ router.post("/initialize", async (req, res) => {
  * Verify Paystack payment and persist purchased books to library.
  */
 router.get("/verify/:reference", async (req, res) => {
+
+
+    console.log(
+    "🔥🔥🔥 VERIFY ROUTE HIT 🔥🔥🔥",
+    req.params.reference
+  );
   try {
     const { reference } = req.params;
+
+      console.log(
+      "[TRANSACTION][VERIFY][START]",
+      reference
+    );
 
     const transaction = await Transaction.findOne({ reference }).populate(
       "order",
@@ -169,6 +180,11 @@ router.get("/verify/:reference", async (req, res) => {
     }
 
     const paystackResponse = await verifyPayment(reference);
+
+    console.log(
+  "[TRANSACTION][VERIFY][RAW PAYSTACK RESPONSE]",
+  JSON.stringify(paystackResponse, null, 2)
+);
     const paymentData = paystackResponse && paystackResponse.data;
     const expectedAmount = Math.round(transaction.amount * 100);
 
@@ -322,13 +338,30 @@ if (!isValidPayment) {
       message: "Payment verified and order updated",
       data: { library },
     });
-  } catch (error) {
-    console.error("VERIFY ERROR:", error);
-    return res.status(500).json({
-      success: false,
-      error: "Verification failed",
-    });
+  }  catch (error) {
+  console.error("========================================");
+  console.error("🔥 [TRANSACTION][VERIFY][ERROR] 🔥");
+  console.error("Message:", error?.message);
+  console.error("Stack:", error?.stack);
+
+  if (error?.response) {
+    console.error(
+      "[TRANSACTION][VERIFY][PAYSTACK ERROR]",
+      {
+        status: error.response.status,
+        data: error.response.data,
+      }
+    );
   }
+
+  console.error("========================================");
+
+  return res.status(500).json({
+    success: false,
+    error: "Verification failed",
+    debug: error?.message || "Unknown verification error",
+  });
+}
 });
 
 module.exports = router;
