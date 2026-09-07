@@ -10,9 +10,10 @@ const {
 } = require("../Controllers/subscribeController");
 
 const { adminProtect } = require("../middleware/authAdmin");
+const verifyTurnstile = require("../middleware/verifyTurnstile");
 
 // POST /api/v1/subscribers/subscribe
-router.post("/subscribe", subscribe);
+router.post("/subscribe", verifyTurnstile, subscribe);
 router.patch("/subscribe", updateSubscription);
 
 // GET /api/v1/subscribers/all (admin only)

@@ -4,6 +4,7 @@ const Order = require("../Models/BooksOrdersModel");
 const Book = require("../Models/BooksModel");
 const { adminProtect } = require("../middleware/authAdmin");
 const { protect } = require("../middleware/auth");
+const verifyTurnstile = require("../middleware/verifyTurnstile");
 const { getMyPurchaseHistory } = require("../Controllers/orderController");
 
 /**
@@ -12,7 +13,7 @@ const { getMyPurchaseHistory } = require("../Controllers/orderController");
  * Authenticated checkout
  * -----------------------------------
  */
-router.post("/", protect, async (req, res) => {
+router.post("/", protect, verifyTurnstile, async (req, res) => {
   try {
     const { items, userInfo } = req.body;
 

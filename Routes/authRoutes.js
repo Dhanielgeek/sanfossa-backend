@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const { protect } = require("../middleware/auth");
+const verifyTurnstile = require("../middleware/verifyTurnstile");
 const {
   register,
   login,
@@ -13,9 +14,9 @@ const {
 } = require("../Controllers/authController");
 
 // User auth routes. Admin auth lives separately in Routes/adminRoutes.js.
-router.post("/register", register);
-router.post("/signup", register);
-router.post("/login", login);
+router.post("/register", verifyTurnstile, register);
+router.post("/signup", verifyTurnstile, register);
+router.post("/login", verifyTurnstile, login);
 router.post(
   "/verify-email",
   verifyEmail
@@ -26,7 +27,7 @@ router.post(
   resendVerificationOtp
 );
 
-router.post("/forgot-password", forgotPassword);
+router.post("/forgot-password", verifyTurnstile, forgotPassword);
 router.post("/reset-password", resetPassword);
 router.get("/profile", protect, getProfile);
 router.get("/me", protect, getProfile);

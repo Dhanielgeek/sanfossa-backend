@@ -1,7 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const { submitContactForm } = require('../Controllers/contactController');
-const { protect } = require('../middleware/auth'); 
+const { protect } = require('../middleware/auth');
+const verifyTurnstile = require('../middleware/verifyTurnstile');
 
 // --- Custom Middleware for Optional Protection ---
 // This is a common pattern to check for a token without blocking public access.
@@ -21,6 +22,6 @@ const optionalProtect = (req, res, next) => {
 // @route   POST /api/v1/contact
 // @desc    Submit a contact form (Public access, optional user ID capture)
 // @access  Public
-router.post('/', optionalProtect, submitContactForm);
+router.post('/', optionalProtect, verifyTurnstile, submitContactForm);
 
 module.exports = router;
