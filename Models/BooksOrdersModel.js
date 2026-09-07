@@ -45,6 +45,12 @@ const OrderSchema = new mongoose.Schema(
       sparse: true,
     },
 
+    paymentMethod: {
+      type: String,
+      enum: ["paystack", "crypto"],
+      default: "paystack",
+    },
+
     paymentStatus: {
       type: String,
       enum: ["Pending", "Paid", "Failed"],

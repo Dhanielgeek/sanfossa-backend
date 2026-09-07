@@ -21,6 +21,7 @@ const TransactionSchema = new mongoose.Schema(
 
     gateway: {
       type: String,
+      enum: ["Paystack", "BlockBee"],
       default: "Paystack",
     },
 
@@ -33,6 +34,19 @@ const TransactionSchema = new mongoose.Schema(
     authorization_url: String,
 
     gatewayResponse: Object,
+
+    // --- Crypto (BlockBee) specific fields ---
+    cryptoCoin: String,
+    cryptoAddress: String,
+    cryptoCallbackToken: {
+      type: String,
+      index: true,
+      sparse: true,
+    },
+    expectedFiatAmount: Number,
+    expectedFiatCurrency: String,
+    confirmedTxHash: String,
+    confirmations: Number,
 
     paidAt: Date,
     emailEvents: { type: mongoose.Schema.Types.Mixed, default: {} },

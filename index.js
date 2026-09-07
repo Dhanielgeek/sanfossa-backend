@@ -6,6 +6,9 @@ const mongoose = require("mongoose");
 const cors = require("cors");
 const path = require("path");
 const morgan = require("morgan");
+const helmet = require("helmet");
+const rateLimit = require("express-rate-limit");
+const sanitizeRequest = require("./middleware/sanitize");
 
 require("./cron/publishScheduledBlogs");
 const {
@@ -37,11 +40,29 @@ const allowedOrigins = [
   "http://localhost:3000",
   "http://localhost:5173",
   "https://www.sankofaseek.com",
+  "https://sankofaseek.com",
 ];
+
+app.set("trust proxy", 1);
+
+app.use(
+  helmet({
+    // Cross-Origin-Resource-Policy would block the frontend (a different
+    // origin) from loading images/PDFs served from /uploads.
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+  }),
+);
 
 app.use(
   cors({
-    origin: "*",
+    origin(origin, callback) {
+      // Allow non-browser requests (curl, server-to-server, BlockBee IPN)
+      // which send no Origin header at all.
+      if (!origin || allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      return callback(new Error("Not allowed by CORS"));
+    },
     credentials: true,
   }),
 );
@@ -49,7 +70,46 @@ app.use(
 app.use(morgan("dev"));
 
 app.use(express.json());
+app.use(sanitizeRequest);
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+
+// General API rate limit.
+app.use(
+  "/api",
+  rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 300,
+    standardHeaders: true,
+    legacyHeaders: false,
+  }),
+);
+
+// Stricter limits on sensitive/abuse-prone routes.
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: "Too many attempts, please try again later." },
+});
+
+const paymentLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: "Too many payment requests, please try again later." },
+});
+
+// BlockBee's IPN can call back multiple times per transaction (pending ->
+// confirmed) from its own servers, so this needs a much higher ceiling
+// than user-initiated payment requests.
+const cryptoCallbackLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000,
+  max: 200,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 // 5. Routes
 const authRoutes = require("./Routes/authRoutes");
@@ -72,8 +132,12 @@ const mediaRoutes = require("./Routes/mediaRoutes");
 const { sendEmail } = require("./services/emailservice");
 const userdashboardRoutes = require("./Routes/userDashboardRoutes");
 const reflectionNoteRoutes = require("./Routes/reflectionNoteRoutes");
+const {
+  router: cryptoPaymentRoutes,
+  callbackRouter: cryptoCallbackRoutes,
+} = require("./Routes/cryptoPaymentRoutes");
 
-app.use("/api/auth", authRoutes);
+app.use("/api/auth", authLimiter, authRoutes);
 app.use("/api/blog", blogRoutes);
 app.use("/api/book", bookRoutes);
 app.use("/api/order", orderRoutes);
@@ -98,7 +162,11 @@ app.use("/api/health", healthRoutes);
 console.log("🔥 Library route import:", libraryRoutes);
 //Paystack Routes
 
-app.use("/api/transactions", transactionRoutes);
+app.use("/api/transactions", paymentLimiter, transactionRoutes);
+
+// Crypto payments (BlockBee)
+app.use("/api/crypto/callback", cryptoCallbackLimiter, cryptoCallbackRoutes);
+app.use("/api/crypto", paymentLimiter, cryptoPaymentRoutes);
 
 app.use("/api/dashboard", userdashboardRoutes);
 
