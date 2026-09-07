@@ -1,53 +1,78 @@
+
 const User = require("../Models/userModel");
 const Order = require("../Models/BooksOrdersModel");
-const Blog = require("../Models/BlogModel");
-const Subscriber = require("../Models/Subscriber");
-
 const BooksModel = require("../Models/BooksModel");
 
-// Helper: percentage change
-const calcChange = (current, previous) => {
-  if (!previous || previous === 0) return "+0%";
-  const diff = ((current - previous) / previous) * 100;
-  return `${diff >= 0 ? "+" : ""}${diff.toFixed(1)}%`;
-};
-
-const formatOrderId = (order) => {
-  if (order.paymentReference) {
-    return order.paymentReference;
-  }
-
-  return `ORD-${String(order._id).slice(-6).toUpperCase()}`;
-};
-
-exports.getAdminDashboard = async (req, res) => {
+// GET USER DASHBOARD
+exports.getUserDashboard = async (req, res) => {
   try {
-    /* ---------- USERS ---------- */
-    const totalUsers = await User.countDocuments();
+    const userId = req.user._id;
 
-    /* ---------- ORDERS ---------- */
-    const totalOrders = await Order.countDocuments();
-    const revenueAgg = await Order.aggregate([
-      { $match: { status: "Completed" } },
-      { $group: { _id: null, total: { $sum: "$totalAmount" } } },
-    ]);
-    const revenue = revenueAgg[0]?.total || 0;
+    // --------------------------------------------------
+    // USER
+    // --------------------------------------------------
+    const user = await User.findById(userId).select(
+      "name email wishlist continuityLibrary"
+    );
 
-    const recentOrdersRaw = await Order.find()
-      .sort({ createdAt: -1 })
-      .limit(5)
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: "User not found",
+      });
+    }
+
+    // --------------------------------------------------
+    // BOOKS PURCHASED
+    // --------------------------------------------------
+    const completedOrders = await Order.find({
+      user: userId,
+      status: "Completed",
+    })
       .populate({
         path: "items.book",
-        select: "title",
+        select: "title author coverImage price",
       })
-      .select("userInfo items totalAmount status paymentReference createdAt");
+      .sort({ createdAt: -1 });
 
-    const recentOrders = recentOrdersRaw.map((order) => ({
+    const booksPurchased = [];
+
+    completedOrders.forEach((order) => {
+      order.items.forEach((item) => {
+        if (item.book) {
+          booksPurchased.push({
+            _id: item.book._id,
+            title: item.book.title,
+            author: item.book.author,
+            coverImage: item.book.coverImage,
+            price: item.book.price,
+            quantity: item.quantity,
+            purchasedAt: order.createdAt,
+            orderId: order._id,
+          });
+        }
+      });
+    });
+
+    // --------------------------------------------------
+    // ORDERS PLACED
+    // --------------------------------------------------
+    const ordersPlaced = await Order.find({
+      user: userId,
+    })
+      .populate({
+        path: "items.book",
+        select: "title coverImage",
+      })
+      .sort({ createdAt: -1 });
+
+    const formattedOrders = ordersPlaced.map((order) => ({
       _id: order._id,
-      orderNumber: formatOrderId(order),
-      customerName: order.userInfo?.name || "Guest customer",
+      orderNumber: order.paymentReference
+        ? order.paymentReference
+        : `ORD-${String(order._id).slice(-6).toUpperCase()}`,
       items: order.items.map((item) => ({
-        name: item.book?.title || "Story",
+        book: item.book,
         quantity: item.quantity,
       })),
       totalAmount: order.totalAmount || 0,
@@ -55,74 +80,35 @@ exports.getAdminDashboard = async (req, res) => {
       createdAt: order.createdAt,
     }));
 
-    /* ---------- BLOG ---------- */
-    const blogs = await Blog.find();
-    const totalBlogViews = blogs.reduce(
-      (sum, blog) => sum + (blog.views || 0),
-      0,
-    );
+    // --------------------------------------------------
+    // CONTINUITY LIBRARY
+    // --------------------------------------------------
+    const continuityLibrary = user.continuityLibrary || [];
 
-    const popularPosts = await Blog.find({ status: "published" })
-      .sort({ views: -1 })
-      .limit(4)
-      .select("title views publishDate");
+    // --------------------------------------------------
+    // WISHLIST
+    // --------------------------------------------------
+    const wishlist = user.wishlist || [];
 
-    /* ---------- BOOKS ---------- */
-
-    const books = await BooksModel.find();
-    const totalBookViews = books.reduce(
-      (sum, book) => sum + (book.views || 0),
-      0,
-    );
-
-    /* ---------- NEWSLETTER ---------- */
-    const subscribers = await Subscriber.countDocuments();
-
-    // Static placeholders for now (until email provider analytics)
-    const newsletterStats = {
-      subscribers,
-      openRate: "42.3%",
-      clickRate: "18.7%",
-      lastSent: "2 days ago",
-    };
-
-    /* ---------- RESPONSE ---------- */
-    res.json({
+    // --------------------------------------------------
+    // RESPONSE
+    // --------------------------------------------------
+    return res.status(200).json({
       success: true,
       data: {
-        stats: {
-          users: {
-            value: totalUsers,
-            change: calcChange(totalUsers, totalUsers - 20),
-          },
-          orders: {
-            value: totalOrders,
-            change: calcChange(totalOrders, totalOrders - 10),
-          },
-          revenue: {
-            value: revenue,
-            change: "+0%",
-          },
-          blogViews: {
-            value: totalBlogViews,
-            change: "+0%",
-          },
-          bookViews: {
-            value: totalBookViews,
-            change: "+0%",
-          },
-        },
-
-        recentOrders,
-        popularPosts,
-        newsletter: newsletterStats,
+        continuityLibrary,
+        booksPurchased,
+        wishlist,
+        ordersPlaced: formattedOrders,
       },
     });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({
+    console.error("Get user dashboard error:", error);
+
+    return res.status(500).json({
       success: false,
-      error: "Failed to load admin dashboard",
+      error: "Failed to load user dashboard",
     });
   }
 };
+
