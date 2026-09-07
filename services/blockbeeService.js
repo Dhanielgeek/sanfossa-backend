@@ -16,6 +16,27 @@ if (!API_KEY) {
 }
 
 /**
+ * BlockBee's /create endpoint does not return a fiat->crypto conversion
+ * even with convert=1, so the actual coin quantity to display/expect has
+ * to come from the dedicated /convert endpoint.
+ */
+async function convertFiatToCoin({ coin, fiatValue }) {
+  const url = new URL(`https://api.blockbee.io/${coin.replace("_", "/")}/convert/`);
+  url.searchParams.append("value", fiatValue);
+  url.searchParams.append("from", FIAT_CURRENCY);
+  url.searchParams.append("apikey", API_KEY);
+
+  const response = await fetch(url);
+  const data = await response.json();
+
+  if (data.status !== "success") {
+    throw new Error(data.error || "BlockBee conversion failed");
+  }
+
+  return Number(data.value_coin);
+}
+
+/**
  * Generates the opaque per-transaction token embedded in the BlockBee
  * callback URL. BlockBee does not sign callbacks, so this unguessable
  * token is what proves a callback hit actually corresponds to a
@@ -62,11 +83,22 @@ async function createPaymentAddress({ coin, fiatValue, callbackToken }) {
     throw new Error("BlockBee did not return a payment address");
   }
 
-  const qr = await bb.getQrcode(fiatValue).catch(() => null);
+  const coinAmount = await convertFiatToCoin({ coin, fiatValue }).catch(
+    (error) => {
+      console.error("[BLOCKBEE] fiat->coin conversion failed:", error.message);
+      return null;
+    },
+  );
+
+  const qr = await bb
+    .getQrcode(coinAmount || undefined)
+    .catch(() => null);
 
   return {
     address,
-    qrCodeDataUri: qr && qr.qr_code ? qr.qr_code : null,
+    coinAmount,
+    qrCodeDataUri:
+      qr && qr.qr_code ? `data:image/png;base64,${qr.qr_code}` : null,
     fiatCurrency: FIAT_CURRENCY,
   };
 }

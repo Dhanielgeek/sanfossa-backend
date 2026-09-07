@@ -128,7 +128,7 @@ router.post("/initialize", async (req, res) => {
     // trusted FX rate here rather than sending the NGN figure to BlockBee.
     const usdValue = amount;
 
-    const { address, qrCodeDataUri, fiatCurrency } =
+    const { address, coinAmount, qrCodeDataUri, fiatCurrency } =
       await createPaymentAddress({
         coin,
         fiatValue: usdValue,
@@ -150,6 +150,7 @@ router.post("/initialize", async (req, res) => {
       cryptoCallbackToken: callbackToken,
       expectedFiatAmount: usdValue,
       expectedFiatCurrency: fiatCurrency,
+      expectedCoinAmount: coinAmount || undefined,
     });
 
     return res.status(200).json({
@@ -161,6 +162,7 @@ router.post("/initialize", async (req, res) => {
         qrCode: qrCodeDataUri,
         amount: usdValue,
         currency: fiatCurrency,
+        coinAmount,
       },
     });
   } catch (error) {
@@ -200,6 +202,59 @@ router.get("/status/:reference", async (req, res) => {
     return res
       .status(500)
       .json({ success: false, error: "Failed to fetch payment status" });
+  }
+});
+
+/**
+ * POST /api/crypto/cancel/:reference
+ * Lets the user abandon a pending crypto payment from the checkout UI.
+ * No-ops (rather than erroring) if the payment already confirmed, since
+ * a stale client shouldn't be able to un-pay a completed order.
+ */
+router.post("/cancel/:reference", async (req, res) => {
+  try {
+    const transaction = await Transaction.findOne({
+      reference: req.params.reference,
+      gateway: "BlockBee",
+    }).populate("order");
+
+    if (!transaction) {
+      return res
+        .status(404)
+        .json({ success: false, error: "Transaction not found" });
+    }
+
+    if (transaction.paymentStatus === "Paid") {
+      return res.status(200).json({
+        success: true,
+        data: { paymentStatus: transaction.paymentStatus },
+      });
+    }
+
+    transaction.paymentStatus = "Cancelled";
+    await transaction.save();
+
+    if (transaction.order) {
+      await Order.updateOne(
+        { _id: transaction.order._id, paymentStatus: { $ne: "Paid" } },
+        {
+          $set: {
+            paymentStatus: "Cancelled",
+            status: "Cancelled",
+          },
+        },
+      );
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: { paymentStatus: "Cancelled" },
+    });
+  } catch (error) {
+    console.error("CRYPTO CANCEL ERROR:", error.message);
+    return res
+      .status(500)
+      .json({ success: false, error: "Failed to cancel payment" });
   }
 });
 
