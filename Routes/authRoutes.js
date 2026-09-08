@@ -15,7 +15,7 @@ const {
 
 // User auth routes. Admin auth lives separately in Routes/adminRoutes.js.
 router.post("/register", verifyTurnstile, register);
-router.post("/signup", verifyTurnstile, register);
+
 router.post("/login", verifyTurnstile, login);
 router.post(
   "/verify-email",
