@@ -205,12 +205,16 @@ exports.register = async (req, res) => {
           firstName: existingUser.firstName,
           otp,
         });
-      } catch {
-        return res.status(500).json({
-          success: false,
-          error:
-            "Account exists but we could not send the verification code. Please try again.",
-        });
+      } catch (emailError) {
+  console.error("[AUTH][REGISTER][EMAIL]", emailError);
+
+  await User.findByIdAndDelete(user._id);
+
+  return res.status(500).json({
+    success: false,
+    error:
+      "Account could not be created because the verification email could not be sent. Please try again.",
+  });
       }
 
       return res.status(200).json({
