@@ -17,12 +17,12 @@ router.get("/me", protect, getMyLibrary);
 
 router.patch("/:bookId/progress", protect, updateReadingProgress);
 
-router.get("/:id", adminProtect, getLibraryByUserId);
+router.get("/:id", protect, getLibraryByUserId);
 
 // 🔐 admin: all libraries
 router.get("/all", adminProtect, getAllLibrary);
 
-// 🔐 admin: specific user library
+// 🔐 Admin: specific user library
 router.get("/:id", adminProtect, getLibraryByUserId);
 
 
