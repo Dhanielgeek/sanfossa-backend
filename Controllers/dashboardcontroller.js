@@ -1,41 +1,59 @@
 const ContinuityProduct = require("../Models/continuityProductSchema");
-const ReflectionNote = require("../Models/ReflectionNote");
-const Bookmark = require("../Models/Bookmark");
-const ReadingProgress = require("../Models/ReadingProgress");
+const Order = require("../Models/Order");
+const Wishlist = require("../Models/Wishlist");
 
 exports.getDashboardOverview = async (req, res) => {
   try {
+    const userId = req.user._id;
+
     const [
       continuityLibraryCount,
-      reflectionNotesCount,
-      bookmarksCount,
-      learningPathways,
+      booksPurchasedCount,
+      wishlistCount,
+      ordersPlacedCount,
       recentlyOpened,
       readingProgress,
     ] = await Promise.all([
+      // My Continuity Library
       ContinuityProduct.countDocuments(),
-      ReflectionNote.countDocuments(),
-      Bookmark.countDocuments(),
 
-      ContinuityProduct.distinct("pathway"),
+      // Books Purchased
+      Order.countDocuments({
+        user: userId,
+        status: "completed",
+      }),
 
-      ReadingProgress.find()
+      // Wishlist
+      Wishlist.countDocuments({
+        user: userId,
+      }),
+
+      // Orders Placed
+      Order.countDocuments({
+        user: userId,
+      }),
+
+      // Continue Reading
+      ReadingProgress.find({ user: userId })
         .populate("product")
         .sort({ lastOpenedAt: -1 })
         .limit(3),
 
-      ReadingProgress.find()
+      // Reading Progress
+      ReadingProgress.find({ user: userId })
         .populate("product")
         .sort({ percentage: -1 })
         .limit(3),
     ]);
 
     res.status(200).json({
+      success: true,
+
       stats: {
         continuityLibrary: continuityLibraryCount,
-        reflectionNotes: reflectionNotesCount,
-        bookmarks: bookmarksCount,
-        learningPathways: learningPathways.length,
+        booksPurchased: booksPurchasedCount,
+        wishlist: wishlistCount,
+        ordersPlaced: ordersPlacedCount,
       },
 
       continueReading: recentlyOpened,
@@ -54,6 +72,8 @@ exports.getDashboardOverview = async (req, res) => {
       },
     });
   } catch (error) {
+    console.error("Dashboard overview error:", error);
+
     res.status(500).json({
       success: false,
       message: error.message,
