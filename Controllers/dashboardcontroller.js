@@ -1,6 +1,6 @@
 const ContinuityProduct = require("../Models/continuityProductSchema");
-const Order = require("../Models/Order");
-const Wishlist = require("../Models/Wishlist");
+const Order = require("../Models/BooksOrdersModel");
+// const Wishlist = require("../Models/Wishlist");
 
 exports.getDashboardOverview = async (req, res) => {
   try {
@@ -24,9 +24,9 @@ exports.getDashboardOverview = async (req, res) => {
       }),
 
       // Wishlist
-      Wishlist.countDocuments({
-        user: userId,
-      }),
+      // Wishlist.countDocuments({
+      //   user: userId,
+      // }),
 
       // Orders Placed
       Order.countDocuments({
