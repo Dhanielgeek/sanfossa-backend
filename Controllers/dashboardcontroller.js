@@ -1,6 +1,5 @@
 const ContinuityProduct = require("../Models/continuityProductSchema");
 const Order = require("../Models/BooksOrdersModel");
-// const Wishlist = require("../Models/Wishlist");
 
 exports.getDashboardOverview = async (req, res) => {
   try {
@@ -9,13 +8,14 @@ exports.getDashboardOverview = async (req, res) => {
     const [
       continuityLibraryCount,
       booksPurchasedCount,
-      wishlistCount,
       ordersPlacedCount,
       recentlyOpened,
-      readingProgress,
+     
     ] = await Promise.all([
       // My Continuity Library
-      ContinuityProduct.countDocuments(),
+      ContinuityProduct.countDocuments({
+        user: userId,
+      }),
 
       // Books Purchased
       Order.countDocuments({
@@ -23,42 +23,42 @@ exports.getDashboardOverview = async (req, res) => {
         status: "completed",
       }),
 
-      // Wishlist
-      // Wishlist.countDocuments({
-      //   user: userId,
-      // }),
-
       // Orders Placed
       Order.countDocuments({
         user: userId,
       }),
 
       // Continue Reading
-      ReadingProgress.find({ user: userId })
-        .populate("product")
-        .sort({ lastOpenedAt: -1 })
+      ContinuityProduct.find({
+        user: userId,
+        progress: { $gt: 0 },
+        progress: { $lt: 100 },
+      })
+        .sort({ updatedAt: -1 })
         .limit(3),
 
       // Reading Progress
-      ReadingProgress.find({ user: userId })
-        .populate("product")
-        .sort({ percentage: -1 })
+      ContinuityProduct.find({
+        user: userId,
+        progress: { $gt: 0 },
+      })
+        .sort({ progress: -1 })
         .limit(3),
     ]);
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
 
       stats: {
         continuityLibrary: continuityLibraryCount,
         booksPurchased: booksPurchasedCount,
-        wishlist: wishlistCount,
+        wishlist: 0,
         ordersPlaced: ordersPlacedCount,
       },
 
       continueReading: recentlyOpened,
 
-      readingProgress,
+      // readingProgress,
 
       insights: {
         recentActivity:
@@ -74,7 +74,7 @@ exports.getDashboardOverview = async (req, res) => {
   } catch (error) {
     console.error("Dashboard overview error:", error);
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: error.message,
     });
