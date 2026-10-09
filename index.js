@@ -165,6 +165,7 @@ const mediaRoutes = require("./Routes/mediaRoutes");
 const { sendEmail } = require("./services/emailservice");
 const userdashboardRoutes = require("./Routes/userDashboardRoutes");
 const reflectionNoteRoutes = require("./Routes/reflectionNoteRoutes");
+const storyOptionRoutes = require("./Routes/storyOptionRoutes");
 const {
   router: cryptoPaymentRoutes,
   callbackRouter: cryptoCallbackRoutes,
@@ -185,6 +186,7 @@ app.use("/api/waitlist", waitlistRoutes);
 // Public subscriber endpoints (subscribe/unsubscribe)
 app.use("/api/subscribers", subscribeRoutes);
 
+app.use("/api/admin/story-options", storyOptionRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/admin", adminDashboardRoutes);
 app.use("/api/uploads", uploadRoutes);
