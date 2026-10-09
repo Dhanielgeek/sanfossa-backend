@@ -121,6 +121,9 @@ const authLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { success: false, error: "Too many attempts, please try again later." },
+  // Session refresh is authenticated and infrequent; don't count it
+  // against the login/registration budget.
+  skip: (req) => req.path === "/refresh",
 });
 
 const paymentLimiter = rateLimit({

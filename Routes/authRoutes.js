@@ -52,6 +52,7 @@ const {
   resetPassword,
   getProfile,
   updateProfile,
+  refreshSession,
 } = require("../Controllers/authController");
 
 // User auth routes. Admin auth lives separately in Routes/adminRoutes.js.
@@ -73,5 +74,8 @@ router.get("/profile", protect, getProfile);
 router.get("/me", protect, getProfile);
 
 router.put("/updateprofile", protect, updateProfile);
+
+// Extend a still-valid session ("Are you still there?" prompt).
+router.post("/refresh", protect, refreshSession);
 
 module.exports = router;
