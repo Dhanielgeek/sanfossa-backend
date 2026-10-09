@@ -1,7 +1,7 @@
 const path = require("path");
 const { UTApi, UTFile } = require("uploadthing/server");
 const Book = require("../Models/BooksModel");
-const Library = require("../Models/LibraryModel");
+const { toPublicBook } = require("./bookAccessController");
 
 const getFirstFile = (files, fieldName) => files?.[fieldName]?.[0];
 const PDF_MAX_SIZE_BYTES = 20 * 1024 * 1024;
@@ -477,7 +477,7 @@ exports.getPublicBooks = async (req, res) => {
     res.status(200).json({
       success: true,
       count: books.length,
-      data: normalizeBooksMediaUrls(books),
+      data: books.map((book) => toPublicBook(book)),
     });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -507,97 +507,10 @@ exports.getSingleBook = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      data: normalizeBookMediaUrls(book),
+      data: toPublicBook(book),
     });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
-  }
-};
-
-/**
- * DOWNLOAD BOOK (FREE ONLY)
- */
-exports.downloadBook = async (req, res) => {
-  try {
-    const book = await Book.findById(req.params.id);
-
-    if (!book) {
-      return res.status(404).json({
-        success: false,
-        message: "Book not found",
-      });
-    }
-
-    if (book.price > 0) {
-      return res.status(403).json({
-        success: false,
-        message: "This book is paid. Please purchase to download.",
-      });
-    }
-
-    res.status(200).json({
-      success: true,
-      data: {
-        title: book.title,
-        subtitle: book.subtitle,
-        content: book.content,
-        pdfFile: book.pdfFile,
-      },
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-};
-
-exports.downloadPurchasedBook = async (req, res) => {
-  try {
-    const { email } = req.body;
-    const book = await Book.findById(req.params.id);
-
-    if (!book) {
-      return res.status(404).json({
-        success: false,
-        message: "Book not found",
-      });
-    }
-
-    if (book.price === 0) {
-      return res.status(200).json({
-        success: true,
-        data: {
-          pdfFile: book.pdfFile,
-        },
-      });
-    }
-
-    const owned = await Library.findOne({
-      email: normalizedEmail,
-      schemaVersion: 2,
-      "books.bookId": book._id,
-    });
-
-    if (!owned) {
-      return res.status(403).json({
-        success: false,
-        message: "You have not purchased this book",
-      });
-    }
-
-    const purchasedBook = owned.books.find(
-      (entry) => String(entry.bookId) === String(book._id),
-    );
-
-    res.status(200).json({
-      success: true,
-      data: {
-        pdfFile: book.pdfFile,
-      },
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
   }
 };
 

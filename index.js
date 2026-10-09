@@ -67,13 +67,24 @@ app.use(
   }),
 );
 
-app.use(morgan("dev"));
+// Never write secrets that travel in URLs (stream tokens, BlockBee
+// callback tokens) to the request log.
+morgan.token("url", (req) =>
+  String(req.originalUrl || req.url)
+    .replace(/([?&]token=)[^&]+/gi, "$1[redacted]")
+    .replace(/(\/api\/crypto\/callback\/)[^/?]+/i, "$1[redacted]"),
+);
+app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev"));
 
-app.use(express.json());
+app.use(express.json({ limit: "1mb" }));
+app.use(express.urlencoded({ extended: false, limit: "1mb" }));
 app.use(sanitizeRequest);
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
-// General API rate limit.
+const isMediaStream = (req) => /^\/book\/[^/]+\/stream\//.test(req.path);
+
+// General API rate limit. Media streams have their own limiter below
+// because audio/video seeking issues many range requests.
 app.use(
   "/api",
   rateLimit({
@@ -81,6 +92,18 @@ app.use(
     max: 300,
     standardHeaders: true,
     legacyHeaders: false,
+    skip: isMediaStream,
+  }),
+);
+
+app.use(
+  "/api",
+  rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 1500,
+    standardHeaders: true,
+    legacyHeaders: false,
+    skip: (req) => !isMediaStream(req),
   }),
 );
 
@@ -138,6 +161,7 @@ const {
 } = require("./Routes/cryptoPaymentRoutes");
 
 app.use("/api/auth", authLimiter, authRoutes);
+app.use("/api/admin/login", authLimiter);
 app.use("/api/blog", blogRoutes);
 app.use("/api/book", bookRoutes);
 app.use("/api/order", orderRoutes);
@@ -159,7 +183,6 @@ app.use("/api/media", mediaRoutes);
 // Health endpoints (e.g. MailerLite token validation)
 app.use("/api/health", healthRoutes);
 
-console.log("🔥 Library route import:", libraryRoutes);
 //Paystack Routes
 
 app.use("/api/transactions", paymentLimiter, transactionRoutes);
@@ -178,9 +201,11 @@ app.get("/", (req, res) => {
 // 7. Error handler
 app.use((err, req, res, next) => {
   console.error(err.stack);
-  res.status(err.statusCode || 500).json({
+  const status = err.statusCode || err.status || 500;
+  res.status(status).json({
     success: false,
-    error: err.message || "Server Error",
+    // Don't leak internals (stack/DB messages) on unexpected errors.
+    error: status < 500 ? err.message : "Server Error",
   });
 });
 

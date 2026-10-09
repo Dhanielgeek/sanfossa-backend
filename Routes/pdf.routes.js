@@ -11,17 +11,19 @@ const {
   uploadPdf: pdfUploadMiddleware,
   handlePdfUploadError,
 } = require("../middleware/upload.middleware");
-const { protect } = require("../middleware/auth");
+const { adminProtect } = require("../middleware/authAdmin");
 
+// Raw PDF URLs are admin-only; readers get content through the book
+// stream endpoint, never a direct file link.
 router.post(
   "/upload",
-  protect,
+  adminProtect,
   pdfUploadMiddleware.single("pdf"),
   handlePdfUploadError,
   uploadPdf,
 );
-router.get("/", getAllPdfs);
-router.get("/:id", getSinglePdf);
-router.delete("/:id", protect, deletePdf);
+router.get("/", adminProtect, getAllPdfs);
+router.get("/:id", adminProtect, getSinglePdf);
+router.delete("/:id", adminProtect, deletePdf);
 
 module.exports = router;

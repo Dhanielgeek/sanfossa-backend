@@ -6,7 +6,8 @@ const { sendTemplate } = require("../services/emailservice");
 // @route   POST /api/v1/contact
 // @access  Public (Optional use of protect middleware)
 exports.submitContactForm = async (req, res, next) => {
-  let submissionData = { ...req.body };
+  const { fullName, email, message } = req.body || {};
+  let submissionData = { fullName, email, message };
 
   try {
     // --- 1. Check if user is logged in (ID is available on req.user) ---

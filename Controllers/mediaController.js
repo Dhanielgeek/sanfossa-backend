@@ -140,7 +140,7 @@ exports.getAllMedia = async (req, res) => {
     if (req.query.type) filter.fileType = req.query.type;
 
     const media = await Media.find(filter)
-      .populate("uploadedBy", "fullname email")
+      .populate("uploadedBy", "fullname")
       .sort({ createdAt: -1 });
 
     return res
@@ -158,7 +158,7 @@ exports.getSingleMedia = async (req, res) => {
   try {
     const media = await Media.findById(req.params.id).populate(
       "uploadedBy",
-      "fullname email",
+      "fullname",
     );
 
     if (!media) {

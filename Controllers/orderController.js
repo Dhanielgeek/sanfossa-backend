@@ -53,8 +53,11 @@ exports.createOrder = async (req, res) => {
       items: normalizedItems,
 
       userInfo: {
-        ...userInfo,
-        email: userInfo.email.toLowerCase().trim(),
+        name: String(userInfo.name).trim(),
+        phone: String(userInfo.phone).trim(),
+        address: String(userInfo.address).trim(),
+        // Purchases always belong to the signed-in account.
+        email: String(req.user.email).toLowerCase().trim(),
       },
       user: req.user._id,
       totalAmount,
@@ -93,13 +96,11 @@ exports.createOrder = async (req, res) => {
 
 exports.getMyPurchaseHistory = async (req, res) => {
   try {
-    const email = req.user.email; // assuming auth middleware sets this
-
     const orders = await Order.find({
-      "userInfo.email": email,
-      paymentStatus: "Paid", // optional filter (recommended)
+      user: req.user._id,
+      paymentStatus: "Paid",
     })
-      .populate("items.book")
+      .populate("items.book", "title author coverImage price category")
       .sort({ createdAt: -1 });
 
     return res.status(200).json({

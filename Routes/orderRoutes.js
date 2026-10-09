@@ -71,8 +71,11 @@ router.post("/", protect, verifyTurnstile, async (req, res) => {
     const order = await Order.create({
       items: normalizedItems,
       userInfo: {
-        ...userInfo,
-        email: userInfo.email.toLowerCase().trim(),
+        name: String(userInfo.name).trim(),
+        phone: String(userInfo.phone).trim(),
+        address: String(userInfo.address).trim(),
+        // Purchases always belong to the signed-in account.
+        email: String(req.user.email).toLowerCase().trim(),
       },
       user: req.user._id,
       totalAmount,

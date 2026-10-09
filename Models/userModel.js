@@ -42,8 +42,8 @@ const UserSchema = new mongoose.Schema({
   },
 
   // --- Security & Utility Fields (For forgot password functionality) ---
-  resetPasswordToken: String,
-  resetPasswordExpire: Date,
+  resetPasswordToken: { type: String, select: false },
+  resetPasswordExpire: { type: Date, select: false },
 isEmailVerified: {
   type: Boolean,
   default: false,

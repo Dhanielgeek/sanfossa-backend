@@ -27,6 +27,10 @@ async function pushLibraryBook({ email, userId, entry }) {
   const filter = {
     email: normalizedEmail,
     schemaVersion: 2,
+    // Never re-assign a library that already belongs to another account.
+    ...(userId
+      ? { $or: [{ userId: { $exists: false } }, { userId: null }, { userId }] }
+      : {}),
     books: {
       $not: {
         $elemMatch: {
