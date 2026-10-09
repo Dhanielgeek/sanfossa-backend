@@ -156,15 +156,17 @@ router.post("/initialize", protect, async (req, res) => {
     const reference = `CRYPTO-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`;
     const callbackToken = generateCallbackToken();
 
-    // Crypto settlement is priced in USD; NGN order total is only used
-    // for display/receipts. A real deployment should convert via a
-    // trusted FX rate here rather than sending the NGN figure to BlockBee.
-    const usdValue = amount;
+    if (!(amount > 0)) {
+      return res
+        .status(400)
+        .json({ success: false, error: "This order has nothing to pay" });
+    }
 
+    // The order is priced in NGN; BlockBee converts it to the coin amount.
     const { address, coinAmount, qrCodeDataUri, fiatCurrency } =
       await createPaymentAddress({
         coin,
-        fiatValue: usdValue,
+        fiatValue: amount,
         callbackToken,
       });
 
@@ -181,9 +183,9 @@ router.post("/initialize", protect, async (req, res) => {
       cryptoCoin: coin,
       cryptoAddress: address,
       cryptoCallbackToken: callbackToken,
-      expectedFiatAmount: usdValue,
+      expectedFiatAmount: amount,
       expectedFiatCurrency: fiatCurrency,
-      expectedCoinAmount: coinAmount || undefined,
+      expectedCoinAmount: coinAmount,
     });
 
     return res.status(200).json({
@@ -193,7 +195,7 @@ router.post("/initialize", protect, async (req, res) => {
         coin,
         address,
         qrCode: qrCodeDataUri,
-        amount: usdValue,
+        amount,
         currency: fiatCurrency,
         coinAmount,
       },
