@@ -2,12 +2,18 @@ const BlockBee = require("@blockbee/api");
 const crypto = require("crypto");
 
 const API_KEY = process.env.BLOCKBEE_API_KEY;
-const CALLBACK_BASE_URL =
-  process.env.BLOCKBEE_CALLBACK_BASE_URL || process.env.FRONTEND_URL;
+// BlockBee must call the API (this server), not the frontend. Render sets
+// RENDER_EXTERNAL_URL automatically; set BLOCKBEE_CALLBACK_BASE_URL to
+// override (e.g. https://api.sankofaseek.com).
+const CALLBACK_BASE_URL = (
+  process.env.BLOCKBEE_CALLBACK_BASE_URL ||
+  process.env.RENDER_EXTERNAL_URL ||
+  ""
+).replace(/\/$/, "");
 
-// NGN is not settleable on-chain, so crypto checkout is priced in USD.
-// Adjust here if the business later supports more settlement currencies.
-const FIAT_CURRENCY = "USD";
+// Orders are priced in naira. BlockBee converts NGN to the coin amount at
+// checkout time, so no exchange rate is maintained here.
+const FIAT_CURRENCY = (process.env.BLOCKBEE_FIAT_CURRENCY || "NGN").toUpperCase();
 
 if (!API_KEY) {
   console.warn(
@@ -29,11 +35,13 @@ async function convertFiatToCoin({ coin, fiatValue }) {
   const response = await fetch(url);
   const data = await response.json();
 
-  if (data.status !== "success") {
+  const valueCoin = Number(data.value_coin);
+
+  if (data.status !== "success" || !Number.isFinite(valueCoin) || valueCoin <= 0) {
     throw new Error(data.error || "BlockBee conversion failed");
   }
 
-  return Number(data.value_coin);
+  return valueCoin;
 }
 
 /**
@@ -53,13 +61,23 @@ function generateCallbackToken() {
  *
  * @param {Object} params
  * @param {string} params.coin - BlockBee coin/token ticker, e.g. "btc", "eth", "trx_usdt"
- * @param {number} params.fiatValue - amount denominated in FIAT_CURRENCY
+ * @param {number} params.fiatValue - order total in FIAT_CURRENCY (NGN)
  * @param {string} params.callbackToken - opaque token identifying this transaction
  */
 async function createPaymentAddress({ coin, fiatValue, callbackToken }) {
   if (!API_KEY) {
     throw new Error("BlockBee API key is not configured");
   }
+
+  if (!CALLBACK_BASE_URL) {
+    throw new Error(
+      "BLOCKBEE_CALLBACK_BASE_URL is not configured (must be the API's public URL)",
+    );
+  }
+
+  // Price first: without a confirmed coin amount we can't tell the customer
+  // what to send or verify the payment, so no address is issued.
+  const coinAmount = await convertFiatToCoin({ coin, fiatValue });
 
   const callbackUrl = `${CALLBACK_BASE_URL}/api/crypto/callback/${callbackToken}`;
 
@@ -83,16 +101,7 @@ async function createPaymentAddress({ coin, fiatValue, callbackToken }) {
     throw new Error("BlockBee did not return a payment address");
   }
 
-  const coinAmount = await convertFiatToCoin({ coin, fiatValue }).catch(
-    (error) => {
-      console.error("[BLOCKBEE] fiat->coin conversion failed:", error.message);
-      return null;
-    },
-  );
-
-  const qr = await bb
-    .getQrcode(coinAmount || undefined)
-    .catch(() => null);
+  const qr = await bb.getQrcode(coinAmount).catch(() => null);
 
   return {
     address,

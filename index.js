@@ -15,6 +15,13 @@ const {
   processDueScheduledNewsletters,
 } = require("./cron/sendScheduledNewsletters");
 
+// Some SDKs (e.g. @blockbee/api's constructor) fire promises without a
+// .catch. On Node >= 15 an unhandled rejection exits the process, which
+// would take the whole API down when a third-party call fails. Log instead.
+process.on("unhandledRejection", (reason) => {
+  console.error("[UNHANDLED REJECTION]", reason);
+});
+
 // 2. App
 const app = express();
 
