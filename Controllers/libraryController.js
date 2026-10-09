@@ -1,8 +1,41 @@
 
 const Library = require("../Models/LibraryModel");
+const { toPublicBook } = require("./bookAccessController");
 
 const normalizeEmail = (email) =>
   String(email || "").trim().toLowerCase();
+
+const SNAPSHOT_PRIVATE_FIELDS = ["pdfFile", "content"];
+
+/**
+ * Remove storage URLs from a user's library before it leaves the API.
+ * Media is only reachable through the book stream endpoint.
+ */
+const toClientLibrary = (library) => {
+  const data =
+    typeof library.toObject === "function" ? library.toObject() : library;
+
+  return {
+    ...data,
+    bookSnapshot: undefined,
+    books: (data.books || []).map((entry) => {
+      const snapshot = { ...(entry.bookSnapshot || {}) };
+      SNAPSHOT_PRIVATE_FIELDS.forEach((field) => delete snapshot[field]);
+
+      const populated =
+        entry.bookId && typeof entry.bookId === "object" && entry.bookId._id
+          ? toPublicBook(entry.bookId)
+          : null;
+
+      return {
+        ...entry,
+        bookId: populated ? String(populated._id) : entry.bookId,
+        book: populated,
+        bookSnapshot: snapshot,
+      };
+    }),
+  };
+};
 
 /**
  * =========================================
@@ -14,10 +47,6 @@ exports.getMyLibrary = async (req, res) => {
     const userId = req.user && req.user._id;
     const email = normalizeEmail(req.user && req.user.email);
 
-    console.log("[LIBRARY][ME] req.user:", {
-      id: userId ? String(userId) : null,
-      email,
-    });
 
     let library = await Library.findOne({
       userId,
@@ -75,14 +104,14 @@ exports.getMyLibrary = async (req, res) => {
     return res.status(200).json({
       success: true,
       count: library.books.length,
-      data: library,
+      data: toClientLibrary(library),
     });
   } catch (error) {
     console.error("[LIBRARY][ME] Error:", error);
 
     return res.status(500).json({
       success: false,
-      error: error.message,
+      error: "Unable to load library",
     });
   }
 };

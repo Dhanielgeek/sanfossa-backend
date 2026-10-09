@@ -26,11 +26,8 @@ exports.protect = async (req, res, next) => {
 
   try {
     // Verify token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-    console.log("[AUTH][USER] decoded token:", {
-      id: decoded.id,
-      type: decoded.type || "user",
+    const decoded = jwt.verify(token, process.env.JWT_SECRET, {
+      algorithms: ["HS256"],
     });
 
     if (decoded.type && decoded.type !== "user") {
@@ -49,12 +46,6 @@ exports.protect = async (req, res, next) => {
         message: "User no longer exists",
       });
     }
-
-    console.log("[AUTH][USER] req.user:", {
-      id: String(req.user._id),
-      email: req.user.email,
-      role: req.user.role,
-    });
 
     next();
   } catch (error) {

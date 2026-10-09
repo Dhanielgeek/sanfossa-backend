@@ -1,11 +1,17 @@
 const ReflectionNote = require("../Models/ReflectionNote");
 
+const escapeRegex = (value) =>
+  String(value).slice(0, 100).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const ownNote = (req) => ({ _id: req.params.id, user: req.user._id });
+
 // Create Note
 exports.createNote = async (req, res) => {
   try {
     const { productId, title, body } = req.body;
 
     const note = await ReflectionNote.create({
+      user: req.user._id,
       productId,
       title,
       body,
@@ -19,7 +25,7 @@ exports.createNote = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: error.message,
+      message: "Something went wrong",
     });
   }
 };
@@ -29,16 +35,17 @@ exports.getNotes = async (req, res) => {
   try {
     const { search, productId } = req.query;
 
-    let filter = {};
+    let filter = { user: req.user._id };
 
     if (productId && productId !== "All") {
       filter.productId = productId;
     }
 
     if (search) {
+      const pattern = escapeRegex(search);
       filter.$or = [
-        { title: { $regex: search, $options: "i" } },
-        { body: { $regex: search, $options: "i" } },
+        { title: { $regex: pattern, $options: "i" } },
+        { body: { $regex: pattern, $options: "i" } },
       ];
     }
 
@@ -54,7 +61,7 @@ exports.getNotes = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: error.message,
+      message: "Something went wrong",
     });
   }
 };
@@ -62,7 +69,7 @@ exports.getNotes = async (req, res) => {
 // Single Note
 exports.getNote = async (req, res) => {
   try {
-    const note = await ReflectionNote.findById(req.params.id).populate(
+    const note = await ReflectionNote.findOne(ownNote(req)).populate(
       "productId",
       "title",
     );
@@ -81,7 +88,7 @@ exports.getNote = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: error.message,
+      message: "Something went wrong",
     });
   }
 };
@@ -91,8 +98,8 @@ exports.updateNote = async (req, res) => {
   try {
     const { title, body } = req.body;
 
-    const note = await ReflectionNote.findByIdAndUpdate(
-      req.params.id,
+    const note = await ReflectionNote.findOneAndUpdate(
+      ownNote(req),
       {
         title,
         body,
@@ -117,7 +124,7 @@ exports.updateNote = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: error.message,
+      message: "Something went wrong",
     });
   }
 };
@@ -125,7 +132,7 @@ exports.updateNote = async (req, res) => {
 // Delete Note
 exports.deleteNote = async (req, res) => {
   try {
-    const note = await ReflectionNote.findByIdAndDelete(req.params.id);
+    const note = await ReflectionNote.findOneAndDelete(ownNote(req));
 
     if (!note) {
       return res.status(404).json({
@@ -141,7 +148,7 @@ exports.deleteNote = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: error.message,
+      message: "Something went wrong",
     });
   }
 };

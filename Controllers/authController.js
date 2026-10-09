@@ -186,6 +186,12 @@ exports.register = async (req, res) => {
       }
 
 
+      // Whoever completes verification of this inbox must use the password
+      // set here, not one chosen by an earlier (possibly hostile) signup.
+      existingUser.password = password;
+      existingUser.firstName = String(firstName).trim();
+      existingUser.lastName = String(lastName).trim();
+
       const otp = generateOtp();
 
       existingUser.emailVerificationOtp =
@@ -206,14 +212,12 @@ exports.register = async (req, res) => {
           otp,
         });
       } catch (emailError) {
-  console.error("[AUTH][REGISTER][EMAIL]", emailError);
-
-  await User.findByIdAndDelete(user._id);
+  console.error("[AUTH][REGISTER][EMAIL]", emailError.message);
 
   return res.status(500).json({
     success: false,
     error:
-      "Account could not be created because the verification email could not be sent. Please try again.",
+      "The verification email could not be sent. Please try again.",
   });
       }
 

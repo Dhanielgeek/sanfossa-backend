@@ -13,8 +13,8 @@ const { getWaitlistEntries } = require("../Controllers/waitlistController");
 
 const { adminProtect } = require("../middleware/authAdmin");
 
-router.post("/register", registerAdmin);
-router.post("/signup", registerAdmin);
+// Only an existing admin can create another admin account.
+router.post("/register", adminProtect, registerAdmin);
 router.post("/login", loginAdmin);
 router.get("/profile", adminProtect, getAdminProfile);
 router.get("/me", adminProtect, getAdminProfile);

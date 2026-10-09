@@ -8,6 +8,10 @@ const {
   updateNote,
   deleteNote,
 } = require("../Controllers/reflectionNoteController");
+const { protect } = require("../middleware/auth");
+
+// Notes are private to the signed-in user.
+router.use(protect);
 
 // Create note
 router.post("/", createNote);

@@ -19,7 +19,9 @@ exports.adminProtect = async (req, res, next) => {
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET, {
+      algorithms: ["HS256"],
+    });
 
     if (decoded.type !== "admin") {
       return res.status(403).json({

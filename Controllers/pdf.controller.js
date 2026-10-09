@@ -63,7 +63,7 @@ exports.uploadPdf = async (req, res) => {
       pdfUrl: makeCloudinaryPreviewUrl(result.secure_url),
       publicId: result.public_id,
       fileSize: req.file.size,
-      uploadedBy: req.user?._id || req.admin?._id || null,
+      uploadedBy: req.admin?._id || null,
       createdAt: new Date(),
     });
 
@@ -101,7 +101,7 @@ exports.uploadPdf = async (req, res) => {
 exports.getAllPdfs = async (req, res) => {
   try {
     const pdfs = await Pdf.find()
-      .populate("uploadedBy", "fullname email")
+      .populate("uploadedBy", "fullname")
       .sort({ createdAt: -1 });
 
     return res.status(200).json({
@@ -121,7 +121,7 @@ exports.getSinglePdf = async (req, res) => {
   try {
     const pdf = await Pdf.findById(req.params.id).populate(
       "uploadedBy",
-      "fullname email",
+      "fullname",
     );
 
     if (!pdf) {
@@ -154,17 +154,6 @@ exports.deletePdf = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: "PDF not found",
-      });
-    }
-
-    const requesterId = req.user?._id?.toString();
-    const ownerId = pdf.uploadedBy?.toString();
-    const isAdmin = req.user?.role === "admin";
-
-    if (!isAdmin && ownerId !== requesterId) {
-      return res.status(403).json({
-        success: false,
-        message: "You are not authorized to delete this PDF",
       });
     }
 
