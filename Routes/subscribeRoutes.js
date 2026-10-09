@@ -14,7 +14,7 @@ const verifyTurnstile = require("../middleware/verifyTurnstile");
 
 // POST /api/v1/subscribers/subscribe
 router.post("/subscribe", verifyTurnstile, subscribe);
-router.patch("/subscribe", updateSubscription);
+router.patch("/subscribe", adminProtect, updateSubscription);
 
 // GET /api/v1/subscribers/all (admin only)
 router.get("/all", adminProtect, getSubscribers);

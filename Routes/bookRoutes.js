@@ -8,11 +8,13 @@ const {
   getAllBooksAdmin,
   getPublicBooks,
   getSingleBook,
-  downloadBook,
-  downloadPurchasedBook,
   // incrementBookView,
   trackBookView,
 } = require("../Controllers/bookController");
+const {
+  getBookAccess,
+  streamBookMedia,
+} = require("../Controllers/bookAccessController");
 
 const upload = require("../middleware/upload");
 const { protect } = require("../middleware/auth");
@@ -28,14 +30,20 @@ router.get("/", getPublicBooks);
 // Get all stories (draft + published)
 router.get("/admin/all", adminProtect, getAllBooksAdmin);
 
-// Download purchased story
-router.post("/:id/download-purchased", downloadPurchasedBook);
-
-// Get single published story
+// Get single published story (metadata only, never the file URLs)
 router.get("/:id", getSingleBook);
 
-// Download story (free only)
-router.get("/:id/download", protect, downloadBook);
+/* =======================
+   READ-ONLY ACCESS
+   Files are never downloadable. Entitled users get a short-lived stream
+   token and the media is proxied through the API.
+======================= */
+
+// Check whether the signed-in user can read this story (free or purchased)
+router.get("/:id/access", protect, getBookAccess);
+
+// Stream PDF/audio/video bytes (auth via stream token)
+router.get("/:id/stream/:kind", streamBookMedia);
 
 /* =======================
    ADMIN ROUTES

@@ -85,7 +85,7 @@ exports.createUpload = async (req, res) => {
 exports.getAllUploads = async (req, res) => {
   try {
     const uploads = await Upload.find()
-      .populate("createdBy", "fullname email")
+      .populate("createdBy", "fullname")
       .sort({ createdAt: -1 });
 
     res.status(200).json({

@@ -13,6 +13,29 @@ const {
   generateCallbackToken,
   getSupportedCoins,
 } = require("../services/blockbeeService");
+const { protect } = require("../middleware/auth");
+
+const COIN_PATTERN = /^[a-z0-9]+(_[a-z0-9]+)?$/;
+// Coins offered at checkout. Override with CRYPTO_ALLOWED_COINS="btc,ltc,...".
+const ALLOWED_COINS = new Set(
+  String(process.env.CRYPTO_ALLOWED_COINS || "btc,eth,trx_usdt,bep20_usdt,ltc")
+    .split(",")
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean),
+);
+
+const ownsOrder = (order, user) =>
+  Boolean(order && user && String(order.user) === String(user._id));
+
+// BlockBee sends value_coin_convert as a JSON string, e.g. '{"USD": "3.20"}'.
+const parseConvertedValue = (raw, currency) => {
+  try {
+    const parsed = typeof raw === "string" ? JSON.parse(raw) : raw || {};
+    return Number(parsed[String(currency || "").toUpperCase()]);
+  } catch {
+    return NaN;
+  }
+};
 
 const firstName = (name) =>
   String(name || "there").trim().split(/\s+/)[0] || "there";
@@ -91,7 +114,7 @@ router.get("/coins", async (req, res) => {
  * Creates a BlockBee deposit address for an existing order and records
  * a pending Transaction against it.
  */
-router.post("/initialize", async (req, res) => {
+router.post("/initialize", protect, async (req, res) => {
   try {
     const { orderId, coin } = req.body;
 
@@ -101,9 +124,19 @@ router.post("/initialize", async (req, res) => {
         .json({ success: false, error: "orderId and coin are required" });
     }
 
+    if (
+      typeof coin !== "string" ||
+      !COIN_PATTERN.test(coin) ||
+      !ALLOWED_COINS.has(coin)
+    ) {
+      return res
+        .status(400)
+        .json({ success: false, error: "Unsupported coin" });
+    }
+
     const order = await Order.findById(orderId);
 
-    if (!order) {
+    if (!ownsOrder(order, req.user)) {
       return res
         .status(404)
         .json({ success: false, error: "Order not found" });
@@ -123,15 +156,17 @@ router.post("/initialize", async (req, res) => {
     const reference = `CRYPTO-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`;
     const callbackToken = generateCallbackToken();
 
-    // Crypto settlement is priced in USD; NGN order total is only used
-    // for display/receipts. A real deployment should convert via a
-    // trusted FX rate here rather than sending the NGN figure to BlockBee.
-    const usdValue = amount;
+    if (!(amount > 0)) {
+      return res
+        .status(400)
+        .json({ success: false, error: "This order has nothing to pay" });
+    }
 
+    // The order is priced in NGN; BlockBee converts it to the coin amount.
     const { address, coinAmount, qrCodeDataUri, fiatCurrency } =
       await createPaymentAddress({
         coin,
-        fiatValue: usdValue,
+        fiatValue: amount,
         callbackToken,
       });
 
@@ -148,9 +183,9 @@ router.post("/initialize", async (req, res) => {
       cryptoCoin: coin,
       cryptoAddress: address,
       cryptoCallbackToken: callbackToken,
-      expectedFiatAmount: usdValue,
+      expectedFiatAmount: amount,
       expectedFiatCurrency: fiatCurrency,
-      expectedCoinAmount: coinAmount || undefined,
+      expectedCoinAmount: coinAmount,
     });
 
     return res.status(200).json({
@@ -160,7 +195,7 @@ router.post("/initialize", async (req, res) => {
         coin,
         address,
         qrCode: qrCodeDataUri,
-        amount: usdValue,
+        amount,
         currency: fiatCurrency,
         coinAmount,
       },
@@ -177,14 +212,14 @@ router.post("/initialize", async (req, res) => {
  * GET /api/crypto/status/:reference
  * Polled by the frontend pending-payment screen.
  */
-router.get("/status/:reference", async (req, res) => {
+router.get("/status/:reference", protect, async (req, res) => {
   try {
     const transaction = await Transaction.findOne({
       reference: req.params.reference,
       gateway: "BlockBee",
-    });
+    }).populate("order", "user");
 
-    if (!transaction) {
+    if (!transaction || !ownsOrder(transaction.order, req.user)) {
       return res
         .status(404)
         .json({ success: false, error: "Transaction not found" });
@@ -211,14 +246,14 @@ router.get("/status/:reference", async (req, res) => {
  * No-ops (rather than erroring) if the payment already confirmed, since
  * a stale client shouldn't be able to un-pay a completed order.
  */
-router.post("/cancel/:reference", async (req, res) => {
+router.post("/cancel/:reference", protect, async (req, res) => {
   try {
     const transaction = await Transaction.findOne({
       reference: req.params.reference,
       gateway: "BlockBee",
     }).populate("order");
 
-    if (!transaction) {
+    if (!transaction || !ownsOrder(transaction.order, req.user)) {
       return res
         .status(404)
         .json({ success: false, error: "Transaction not found" });
@@ -289,7 +324,6 @@ callbackRouter.all("/:callbackToken", async (req, res) => {
 
     const confirmations = Number(payload.confirmations || 0);
     const result = String(payload.result || "").toLowerCase();
-    const receivedValue = Number(payload.value_coin_convert || payload.value || 0);
     const isPending = String(payload.pending || "0") === "1";
 
     transaction.confirmations = confirmations;
@@ -303,13 +337,34 @@ callbackRouter.all("/:callbackToken", async (req, res) => {
       return ackOk();
     }
 
-    const expected = Number(transaction.expectedFiatAmount || 0);
-    if (expected > 0 && receivedValue > 0 && receivedValue < expected * 0.98) {
-      // Underpaid by more than a 2% tolerance (covers price/fee slippage).
+    // Fail closed: the payment must reach the expected amount (2% tolerance
+    // for price/fee slippage) in fiat or coin terms, at our address.
+    const expectedFiat = Number(transaction.expectedFiatAmount || 0);
+    const expectedCoin = Number(transaction.expectedCoinAmount || 0);
+    const receivedFiat = parseConvertedValue(
+      payload.value_coin_convert,
+      transaction.expectedFiatCurrency,
+    );
+    const receivedCoin = Number(payload.value_coin);
+    const fiatOk =
+      expectedFiat > 0 &&
+      Number.isFinite(receivedFiat) &&
+      receivedFiat >= expectedFiat * 0.98;
+    const coinOk =
+      expectedCoin > 0 &&
+      Number.isFinite(receivedCoin) &&
+      receivedCoin >= expectedCoin * 0.98;
+    const addressOk =
+      !payload.address_in || payload.address_in === transaction.cryptoAddress;
+
+    if (!addressOk || !(fiatOk || coinOk)) {
       console.error("[CRYPTO][CALLBACK][UNDERPAID]", {
         reference: transaction.reference,
-        expected,
-        received: receivedValue,
+        expectedFiat,
+        receivedFiat,
+        expectedCoin,
+        receivedCoin,
+        addressOk,
       });
       transaction.paymentStatus = "Failed";
       await transaction.save();

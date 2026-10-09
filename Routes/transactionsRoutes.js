@@ -7,6 +7,10 @@ const Order = require("../Models/BooksOrdersModel");
 const Book = require("../Models/BooksModel");
 const { sendTemplate, platformUrl } = require("../services/emailservice");
 const { ensureOrderBooksInLibrary } = require("../services/libraryService");
+const { protect } = require("../middleware/auth");
+
+const ownsOrder = (order, user) =>
+  Boolean(order && user && String(order.user) === String(user._id));
 const {
   initializePayment,
   verifyPayment,
@@ -40,13 +44,13 @@ async function sendPaymentFailureEmail(order, transaction) {
  * POST /api/transactions/initialize
  * Initialize Paystack payment for an existing order.
  */
-router.post("/initialize", async (req, res) => {
+router.post("/initialize", protect, async (req, res) => {
   try {
     const { orderId } = req.body;
 
     const order = await Order.findById(orderId);
 
-    if (!order) {
+    if (!ownsOrder(order, req.user)) {
       return res.status(404).json({ success: false, error: "Order not found" });
     }
 
@@ -109,13 +113,7 @@ router.post("/initialize", async (req, res) => {
  * GET /api/transactions/verify/:reference
  * Verify Paystack payment and persist purchased books to library.
  */
-router.get("/verify/:reference", async (req, res) => {
-
-
-    console.log(
-    "🔥🔥🔥 VERIFY ROUTE HIT 🔥🔥🔥",
-    req.params.reference
-  );
+router.get("/verify/:reference", protect, async (req, res) => {
   try {
     const { reference } = req.params;
 
@@ -128,7 +126,7 @@ router.get("/verify/:reference", async (req, res) => {
       "order",
     );
 
-    if (!transaction) {
+    if (!transaction || !ownsOrder(transaction.order, req.user)) {
       return res.status(404).json({
         success: false,
         error: "Transaction not found",
@@ -175,16 +173,12 @@ router.get("/verify/:reference", async (req, res) => {
       return res.status(200).json({
         success: true,
         message: "Transaction already verified",
-        data: { library },
+        data: { added: library ? library.added : 0 },
       });
     }
 
     const paystackResponse = await verifyPayment(reference);
 
-    console.log(
-  "[TRANSACTION][VERIFY][RAW PAYSTACK RESPONSE]",
-  JSON.stringify(paystackResponse, null, 2)
-);
     const paymentData = paystackResponse && paystackResponse.data;
     const expectedAmount = Math.round(transaction.amount * 100);
 
@@ -219,6 +213,19 @@ const isValidPayment =
   String(paymentData.reference) === String(reference) &&
   Number(paymentData.amount) === Number(expectedAmount) &&
   String(paymentData.currency).toUpperCase() === "NGN";
+
+// Abandoned / still-processing payments are not failures yet; let the
+// user retry verification later instead of marking the order failed.
+if (
+  paymentData &&
+  paymentData.status !== "success" &&
+  paymentData.status !== "failed"
+) {
+  return res.status(202).json({
+    success: false,
+    error: "Payment has not completed yet",
+  });
+}
 
 if (!isValidPayment) {
   console.error(
@@ -289,7 +296,7 @@ if (!isValidPayment) {
       return res.status(200).json({
         success: true,
         message: "Transaction already verified",
-        data: { library },
+        data: { added: library ? library.added : 0 },
       });
     }
 
@@ -336,7 +343,7 @@ if (!isValidPayment) {
     return res.status(200).json({
       success: true,
       message: "Payment verified and order updated",
-      data: { library },
+      data: { added: library ? library.added : 0 },
     });
   }  catch (error) {
   console.error("========================================");
@@ -359,7 +366,6 @@ if (!isValidPayment) {
   return res.status(500).json({
     success: false,
     error: "Verification failed",
-    debug: error?.message || "Unknown verification error",
   });
 }
 });

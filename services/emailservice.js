@@ -965,6 +965,25 @@ const sendEmail = async ({
 };
 
 
+// User-controlled values (names, subjects, messages) are interpolated into
+// HTML templates; escape them so nobody can inject markup into mail sent
+// from our domain. Recipient and link fields are left untouched.
+const escapeHtml = (value) =>
+  String(value).replace(
+    /[&<>"]/g,
+    (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[char],
+  );
+
+const escapeTemplateVariables = (variables) =>
+  Object.fromEntries(
+    Object.entries(variables).map(([key, value]) => [
+      key,
+      typeof value === "string" && key !== "to" && !/(link|url)$/i.test(key)
+        ? escapeHtml(value)
+        : value,
+    ]),
+  );
+
 const sendTemplate = async (kind, variables = {}) => {
   const template = templates[kind];
 
@@ -972,7 +991,7 @@ const sendTemplate = async (kind, variables = {}) => {
     throw new Error(`Unknown email template: ${kind}`);
   }
 
-  const email = template(variables);
+  const email = template(escapeTemplateVariables(variables));
 
   let senderKind = "hello";
 
