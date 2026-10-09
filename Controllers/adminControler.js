@@ -1,12 +1,20 @@
 const Admin = require("../Models/Adminmodel");
-const jwt = require("jsonwebtoken");
+const { signSessionToken } = require("../utils/sessionToken");
 const User = require("../Models/userModel");
 const Order = require("../Models/BooksOrdersModel");
 
-const generateToken = (id) =>
-  jwt.sign({ id, type: "admin" }, process.env.JWT_SECRET, {
-    expiresIn: "7d",
+const generateToken = (id) => signSessionToken(id, "admin");
+
+/**
+ * POST /api/admin/refresh  (adminProtect)
+ * Extends a still-valid admin session when the admin confirms they are active.
+ */
+exports.refreshAdminSession = async (req, res) => {
+  return res.status(200).json({
+    success: true,
+    data: { token: generateToken(req.admin._id) },
   });
+};
 
 /**
  * @desc Register admin

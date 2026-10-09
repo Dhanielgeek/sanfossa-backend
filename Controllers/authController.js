@@ -1,5 +1,5 @@
 const crypto = require("crypto");
-const jwt = require("jsonwebtoken");
+const { signSessionToken } = require("../utils/sessionToken");
 
 const User = require("../Models/userModel");
 
@@ -21,17 +21,17 @@ const OTP_EXPIRATION_MINUTES = 10;
 |--------------------------------------------------------------------------
 */
 
-const generateToken = (id) => {
-  return jwt.sign(
-    {
-      id,
-      type: "user",
-    },
-    process.env.JWT_SECRET,
-    {
-      expiresIn: "7d",
-    }
-  );
+const generateToken = (id) => signSessionToken(id, "user");
+
+/**
+ * POST /api/auth/refresh  (protect)
+ * Extends a still-valid session when the user confirms they are active.
+ */
+exports.refreshSession = async (req, res) => {
+  return res.status(200).json({
+    success: true,
+    data: { token: generateToken(req.user._id) },
+  });
 };
 
 /*
