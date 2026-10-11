@@ -166,6 +166,7 @@ const { sendEmail } = require("./services/emailservice");
 const userdashboardRoutes = require("./Routes/userDashboardRoutes");
 const reflectionNoteRoutes = require("./Routes/reflectionNoteRoutes");
 const storyOptionRoutes = require("./Routes/storyOptionRoutes");
+const savedStoryRoutes = require("./Routes/savedStoryRoutes");
 const {
   router: cryptoPaymentRoutes,
   callbackRouter: cryptoCallbackRoutes,
@@ -180,6 +181,7 @@ app.use("/api/contact", contactRoutes);
 app.use("/api/library", libraryRoutes);
 app.use("/api", subscriberGroupRoutes);
 app.use("/api/reflection-notes", reflectionNoteRoutes);
+app.use("/api/saved-stories", savedStoryRoutes);
 app.use("/api/newsletter", newsletterRoutes);
 app.use("/api/waitlist", waitlistRoutes);
 
